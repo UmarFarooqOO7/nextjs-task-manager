@@ -3,23 +3,29 @@ import type { TaskEvent } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 
+type Client = { send: (chunk: string) => void; actor: string }
+
 declare global {
   // eslint-disable-next-line no-var
-  var __sseClients: Set<(count: number) => void> | undefined
+  var __sseClients: Map<string, Client> | undefined
 }
 
 if (!globalThis.__sseClients) {
-  globalThis.__sseClients = new Set()
+  globalThis.__sseClients = new Map()
 }
 
 function broadcastPresence() {
-  const count = globalThis.__sseClients!.size
-  for (const send of globalThis.__sseClients!) {
-    send(count)
+  const roster = Array.from(globalThis.__sseClients!.values()).map(c => c.actor)
+  const data = `event: presence\ndata: ${JSON.stringify({ roster })}\n\n`
+  for (const { send } of globalThis.__sseClients!.values()) {
+    send(data)
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  const actor = url.searchParams.get("actor") ?? "Someone"
+  const clientId = crypto.randomUUID()
   const encoder = new TextEncoder()
   let cleanup: (() => void) | null = null
 
@@ -29,7 +35,7 @@ export async function GET() {
         try {
           controller.enqueue(encoder.encode(chunk))
         } catch {
-          // controller may be closed
+          // controller may already be closed
         }
       }
 
@@ -37,11 +43,7 @@ export async function GET() {
         write(`event: task_event\ndata: ${JSON.stringify(payload)}\n\n`)
       }
 
-      function sendPresence(count: number) {
-        write(`event: presence\ndata: ${JSON.stringify({ count })}\n\n`)
-      }
-
-      globalThis.__sseClients!.add(sendPresence)
+      globalThis.__sseClients!.set(clientId, { send: write, actor })
       taskEmitter.on("task_event", onTaskEvent)
       broadcastPresence()
 
@@ -52,7 +54,7 @@ export async function GET() {
       cleanup = () => {
         clearInterval(heartbeat)
         taskEmitter.off("task_event", onTaskEvent)
-        globalThis.__sseClients!.delete(sendPresence)
+        globalThis.__sseClients!.delete(clientId)
         broadcastPresence()
       }
     },

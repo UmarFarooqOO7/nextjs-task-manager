@@ -3,8 +3,11 @@ import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "./components/theme-provider"
 import { ThemeToggle } from "./components/theme-toggle"
-import { PresencePill } from "./components/presence-pill"
+import { PresenceAvatars } from "./components/presence-avatars"
 import { TaskRealtime } from "./components/task-realtime"
+import { ActivityFeedButton } from "./components/activity-feed"
+import { CommandPalette } from "./components/command-palette"
+import { KeyboardShortcuts } from "./components/keyboard-shortcuts"
 import { Toaster } from "sonner"
 import Link from "next/link"
 
@@ -38,13 +41,16 @@ export default function RootLayout({
                 Task Manager
               </Link>
               <div className="flex items-center gap-2">
-                <PresencePill />
+                <PresenceAvatars />
+                <ActivityFeedButton />
+                <KeyboardShortcuts />
                 <ThemeToggle />
               </div>
             </div>
           </header>
           <main>{children}</main>
           <TaskRealtime />
+          <CommandPalette />
           <Toaster position="bottom-right" richColors />
         </ThemeProvider>
       </body>

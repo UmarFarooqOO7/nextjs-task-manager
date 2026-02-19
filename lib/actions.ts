@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
-import { createTask, updateTask, deleteTask, toggleTask, getTask } from "./data"
+import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks } from "./data"
 import { emitTaskEvent } from "./emitter"
 import type { ActionState } from "./types"
 
@@ -17,11 +17,13 @@ export async function createTaskAction(
 ): Promise<ActionState> {
   const title = formData.get("title")?.toString().trim() ?? ""
   const description = formData.get("description")?.toString().trim() ?? ""
+  const priority = Number(formData.get("priority") ?? 0) as 0 | 1 | 2 | 3
+  const due_date = formData.get("due_date")?.toString() || null
 
   if (!title) return { error: "Title is required." }
 
   const actor = await getActor()
-  const result = createTask({ title, description })
+  const result = createTask({ title, description, priority, due_date })
   revalidatePath("/tasks")
   emitTaskEvent({ type: "created", taskId: Number(result.lastInsertRowid), taskTitle: title, actor })
   redirect("/tasks")
@@ -35,11 +37,13 @@ export async function updateTaskAction(
   const title = formData.get("title")?.toString().trim() ?? ""
   const description = formData.get("description")?.toString().trim() ?? ""
   const completed = formData.get("completed") === "on" ? 1 : 0
+  const priority = Number(formData.get("priority") ?? 0) as 0 | 1 | 2 | 3
+  const due_date = formData.get("due_date")?.toString() || null
 
   if (!title) return { error: "Title is required." }
 
   const actor = await getActor()
-  updateTask(id, { title, description, completed: completed as 0 | 1 })
+  updateTask(id, { title, description, completed: completed as 0 | 1, priority, due_date })
   revalidatePath("/tasks")
   revalidatePath(`/tasks/${id}`)
   emitTaskEvent({ type: "updated", taskId: id, taskTitle: title, actor })
@@ -73,4 +77,11 @@ export async function deleteTaskListAction(id: number): Promise<void> {
   deleteTask(id)
   revalidatePath("/tasks")
   emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor })
+}
+
+export async function reorderTasksAction(orderedIds: number[]): Promise<void> {
+  reorderTasks(orderedIds)
+  revalidatePath("/tasks")
+  const actor = await getActor()
+  emitTaskEvent({ type: "reordered", taskId: 0, taskTitle: "", actor })
 }

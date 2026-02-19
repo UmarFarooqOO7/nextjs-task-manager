@@ -53,6 +53,37 @@ export function TaskForm({ action, task }: Props) {
         />
       </div>
 
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="priority" className="text-sm font-medium">
+            Priority
+          </Label>
+          <select
+            id="priority"
+            name="priority"
+            defaultValue={task?.priority ?? 0}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value={0}>None</option>
+            <option value={1}>Low</option>
+            <option value={2}>Medium</option>
+            <option value={3}>High</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="due_date" className="text-sm font-medium">
+            Due Date
+          </Label>
+          <Input
+            id="due_date"
+            name="due_date"
+            type="date"
+            defaultValue={task?.due_date ?? ""}
+          />
+        </div>
+      </div>
+
       {task && (
         <div className="flex items-center gap-2">
           <Checkbox

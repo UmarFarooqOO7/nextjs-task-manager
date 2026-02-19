@@ -17,10 +17,11 @@ function getOrCreateActor(): string {
 
 function toastMessage(event: TaskEvent): string {
   switch (event.type) {
-    case "created": return `${event.actor} created "${event.taskTitle}"`
-    case "updated": return `${event.actor} updated "${event.taskTitle}"`
-    case "deleted": return `${event.actor} deleted "${event.taskTitle}"`
-    case "toggled": return `${event.actor} toggled "${event.taskTitle}"`
+    case "created":  return `${event.actor} created "${event.taskTitle}"`
+    case "updated":  return `${event.actor} updated "${event.taskTitle}"`
+    case "deleted":  return `${event.actor} deleted "${event.taskTitle}"`
+    case "toggled":  return `${event.actor} toggled "${event.taskTitle}"`
+    case "reordered": return `${event.actor} reordered tasks`
   }
 }
 
@@ -35,19 +36,22 @@ export function TaskRealtime() {
     let retryTimeout: ReturnType<typeof setTimeout>
 
     function connect() {
-      es = new EventSource("/api/tasks/stream")
+      const actor = encodeURIComponent(actorRef.current)
+      es = new EventSource(`/api/tasks/stream?actor=${actor}`)
 
       es.addEventListener("task_event", (e: MessageEvent) => {
         const payload: TaskEvent = JSON.parse(e.data)
         router.refresh()
+        // Dispatch for activity feed
+        window.dispatchEvent(new CustomEvent("sse:task_event", { detail: payload }))
         if (payload.actor !== actorRef.current) {
           toast(toastMessage(payload))
         }
       })
 
       es.addEventListener("presence", (e: MessageEvent) => {
-        const { count } = JSON.parse(e.data) as { count: number }
-        window.dispatchEvent(new CustomEvent("sse:presence", { detail: { count } }))
+        const data = JSON.parse(e.data) as { roster: string[] }
+        window.dispatchEvent(new CustomEvent("sse:presence", { detail: data }))
       })
 
       es.onerror = () => {

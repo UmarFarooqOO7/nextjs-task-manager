@@ -15,6 +15,44 @@ db.exec(`
   )
 `)
 
+// Schema migrations — idempotent via try/catch (SQLite has no ADD COLUMN IF NOT EXISTS)
+try { db.exec(`ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`) } catch {}
+try { db.exec(`ALTER TABLE tasks ADD COLUMN due_date TEXT`) } catch {}
+try { db.exec(`ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0`) } catch {}
+
+// Backfill position for existing rows
+db.exec(`UPDATE tasks SET position = id WHERE position = 0`)
+
+// FTS5 virtual table for full-text search
+db.exec(`
+  CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+    title,
+    description,
+    content=tasks,
+    content_rowid=id
+  )
+`)
+
+// Sync existing rows into FTS if empty
+const ftsCount = (db.prepare("SELECT COUNT(*) as n FROM tasks_fts").get() as { n: number }).n
+if (ftsCount === 0) {
+  db.exec("INSERT INTO tasks_fts(rowid, title, description) SELECT id, title, description FROM tasks")
+}
+
+// Triggers to keep FTS in sync with task mutations
+db.exec(`
+  CREATE TRIGGER IF NOT EXISTS tasks_ai AFTER INSERT ON tasks BEGIN
+    INSERT INTO tasks_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
+  END;
+  CREATE TRIGGER IF NOT EXISTS tasks_ad AFTER DELETE ON tasks BEGIN
+    INSERT INTO tasks_fts(tasks_fts, rowid, title, description) VALUES('delete', old.id, old.title, old.description);
+  END;
+  CREATE TRIGGER IF NOT EXISTS tasks_au AFTER UPDATE ON tasks BEGIN
+    INSERT INTO tasks_fts(tasks_fts, rowid, title, description) VALUES('delete', old.id, old.title, old.description);
+    INSERT INTO tasks_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
+  END;
+`)
+
 const count = (db.prepare("SELECT COUNT(*) as n FROM tasks").get() as { n: number }).n
 if (count === 0) {
   db.prepare(
