@@ -195,7 +195,7 @@ export function TaskList({ tasks: initialTasks, query, toggleAction, deleteActio
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext id="task-list-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={optimisticTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <ul className="flex flex-col gap-2">
           {optimisticTasks.map(task => (

@@ -3,7 +3,7 @@ import type { Task } from "./types"
 
 export function getTasks(): Task[] {
   return db.prepare(
-    "SELECT * FROM tasks ORDER BY priority DESC, position ASC, created_at DESC"
+    "SELECT * FROM tasks ORDER BY position ASC, created_at DESC"
   ).all() as Task[]
 }
 
@@ -39,7 +39,7 @@ export function getTasksPage(
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
 
-  let orderBy = "priority DESC, position ASC, created_at DESC"
+  let orderBy = "position ASC, created_at DESC"
   if (sort === "due") {
     orderBy = "CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, priority DESC"
   } else if (sort === "created") {

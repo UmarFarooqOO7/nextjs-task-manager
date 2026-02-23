@@ -10,7 +10,7 @@ declare global {
   var __sseClients: Map<string, Client> | undefined
 }
 
-if (!globalThis.__sseClients) {
+if (!(globalThis.__sseClients instanceof Map)) {
   globalThis.__sseClients = new Map()
 }
 

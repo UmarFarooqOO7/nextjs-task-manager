@@ -39,15 +39,21 @@ if (ftsCount === 0) {
   db.exec("INSERT INTO tasks_fts(rowid, title, description) SELECT id, title, description FROM tasks")
 }
 
-// Triggers to keep FTS in sync with task mutations
+// Triggers to keep FTS in sync — drop & recreate so WHEN clause is always current
 db.exec(`
-  CREATE TRIGGER IF NOT EXISTS tasks_ai AFTER INSERT ON tasks BEGIN
+  DROP TRIGGER IF EXISTS tasks_ai;
+  DROP TRIGGER IF EXISTS tasks_ad;
+  DROP TRIGGER IF EXISTS tasks_au;
+
+  CREATE TRIGGER tasks_ai AFTER INSERT ON tasks BEGIN
     INSERT INTO tasks_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
   END;
-  CREATE TRIGGER IF NOT EXISTS tasks_ad AFTER DELETE ON tasks BEGIN
+  CREATE TRIGGER tasks_ad AFTER DELETE ON tasks BEGIN
     INSERT INTO tasks_fts(tasks_fts, rowid, title, description) VALUES('delete', old.id, old.title, old.description);
   END;
-  CREATE TRIGGER IF NOT EXISTS tasks_au AFTER UPDATE ON tasks BEGIN
+  -- Only sync FTS when searchable text actually changes (not on position/priority/due_date/completed updates)
+  CREATE TRIGGER tasks_au AFTER UPDATE ON tasks
+  WHEN old.title != new.title OR old.description != new.description BEGIN
     INSERT INTO tasks_fts(tasks_fts, rowid, title, description) VALUES('delete', old.id, old.title, old.description);
     INSERT INTO tasks_fts(rowid, title, description) VALUES (new.id, new.title, new.description);
   END;
