@@ -1,3 +1,5 @@
+export type TaskStatus = "todo" | "in_progress" | "done"
+
 export type Task = {
   id: number
   title: string
@@ -7,13 +9,14 @@ export type Task = {
   priority: 0 | 1 | 2 | 3
   due_date: string | null
   position: number
+  status: TaskStatus
 }
 
 export type ActionState = {
   error?: string
 }
 
-export type TaskEventType = "created" | "updated" | "deleted" | "toggled" | "reordered"
+export type TaskEventType = "created" | "updated" | "deleted" | "toggled" | "reordered" | "moved"
 
 export type TaskEvent = {
   type: TaskEventType

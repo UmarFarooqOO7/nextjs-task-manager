@@ -22,6 +22,7 @@ function toastMessage(event: TaskEvent): string {
     case "deleted":  return `${event.actor} deleted "${event.taskTitle}"`
     case "toggled":  return `${event.actor} toggled "${event.taskTitle}"`
     case "reordered": return `${event.actor} reordered tasks`
+    case "moved": return `${event.actor} moved "${event.taskTitle}"`
   }
 }
 

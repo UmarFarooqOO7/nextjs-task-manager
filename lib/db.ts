@@ -19,9 +19,11 @@ db.exec(`
 try { db.exec(`ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`) } catch {}
 try { db.exec(`ALTER TABLE tasks ADD COLUMN due_date TEXT`) } catch {}
 try { db.exec(`ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0`) } catch {}
+try { db.exec(`ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'`) } catch {}
 
 // Backfill position for existing rows
 db.exec(`UPDATE tasks SET position = id WHERE position = 0`)
+db.exec(`UPDATE tasks SET status = 'done' WHERE completed = 1 AND status = 'todo'`)
 
 // FTS5 virtual table for full-text search
 db.exec(`

@@ -5,6 +5,7 @@ import { toggleTaskAction, deleteTaskListAction, reorderTasksAction } from "@/li
 import { Button } from "@/components/ui/button"
 import { TaskList } from "@/app/components/task-list"
 import { SearchInput } from "@/app/components/search-input"
+import { ViewToggle } from "@/app/components/view-toggle"
 import { Plus, ClipboardList, ChevronLeft, ChevronRight } from "lucide-react"
 
 const PER_PAGE = 10
@@ -69,12 +70,15 @@ export default async function TasksPage({ searchParams }: Props) {
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">All Tasks</h1>
-        <Button asChild size="sm">
-          <Link href="/tasks/new">
-            <Plus className="size-4" />
-            New Task
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <ViewToggle active="list" />
+          <Button asChild size="sm">
+            <Link href="/tasks/new">
+              <Plus className="size-4" />
+              New Task
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Search + filters */}

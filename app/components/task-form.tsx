@@ -1,25 +1,41 @@
 "use client"
 
+import { useState } from "react"
 import { useActionState } from "react"
 import { SubmitButton } from "./submit-button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Label } from "@radix-ui/react-label"
 import Link from "next/link"
-import type { ActionState, Task } from "@/lib/types"
+import type { ActionState, Task, TaskStatus } from "@/lib/types"
 
 type Props = {
   action: (prevState: ActionState, formData: FormData) => Promise<ActionState>
   task?: Task
+  returnTo?: string
+  defaultStatus?: TaskStatus
 }
 
-export function TaskForm({ action, task }: Props) {
+export function TaskForm({ action, task, returnTo, defaultStatus }: Props) {
   const [state, formAction] = useActionState(action, {})
+  const [priority, setPriority] = useState(String(task?.priority ?? 0))
+  const [status, setStatus] = useState<string>(defaultStatus ?? "todo")
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
+      <input type="hidden" name="priority" value={priority} />
+      {!task && <input type="hidden" name="status" value={status} />}
+
       {state.error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}
@@ -53,22 +69,36 @@ export function TaskForm({ action, task }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${!task ? "grid-cols-3" : "grid-cols-2"}`}>
+        {!task && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium">Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todo">Todo</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="done">Done</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="priority" className="text-sm font-medium">
-            Priority
-          </Label>
-          <select
-            id="priority"
-            name="priority"
-            defaultValue={task?.priority ?? 0}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <option value={0}>None</option>
-            <option value={1}>Low</option>
-            <option value={2}>Medium</option>
-            <option value={3}>High</option>
-          </select>
+          <Label className="text-sm font-medium">Priority</Label>
+          <Select value={priority} onValueChange={setPriority}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">None</SelectItem>
+              <SelectItem value="1">Low</SelectItem>
+              <SelectItem value="2">Medium</SelectItem>
+              <SelectItem value="3">High</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -100,7 +130,7 @@ export function TaskForm({ action, task }: Props) {
       <div className="flex gap-3">
         <SubmitButton label={task ? "Update Task" : "Create Task"} />
         <Button variant="outline" asChild>
-          <Link href={task ? `/tasks/${task.id}` : "/tasks"}>Cancel</Link>
+          <Link href={task ? `/tasks/${task.id}` : (returnTo ?? "/tasks")}>Cancel</Link>
         </Button>
       </div>
     </form>

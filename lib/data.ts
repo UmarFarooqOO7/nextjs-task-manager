@@ -1,5 +1,5 @@
 import db from "./db"
-import type { Task } from "./types"
+import type { Task, TaskStatus } from "./types"
 
 export function getTasks(): Task[] {
   return db.prepare(
@@ -72,11 +72,12 @@ export function getTask(id: number): Task | undefined {
   return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as Task | undefined
 }
 
-export function createTask(data: { title: string; description: string; priority: number; due_date: string | null }) {
+export function createTask(data: { title: string; description: string; priority: number; due_date: string | null; status?: TaskStatus }) {
   const maxPos = (db.prepare("SELECT COALESCE(MAX(position), 0) as m FROM tasks").get() as { m: number }).m
+  const status = data.status ?? "todo"
   return db
-    .prepare("INSERT INTO tasks (title, description, priority, due_date, position) VALUES (?, ?, ?, ?, ?)")
-    .run(data.title, data.description, data.priority, data.due_date, maxPos + 1)
+    .prepare("INSERT INTO tasks (title, description, priority, due_date, position, status) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(data.title, data.description, data.priority, data.due_date, maxPos + 1, status)
 }
 
 export function updateTask(
@@ -98,6 +99,23 @@ export function toggleTask(id: number) {
   return db
     .prepare("UPDATE tasks SET completed = CASE WHEN completed = 0 THEN 1 ELSE 0 END WHERE id = ?")
     .run(id)
+}
+
+export function getTasksBoard(): Record<TaskStatus, Task[]> {
+  const tasks = db.prepare(
+    "SELECT * FROM tasks ORDER BY position ASC, created_at DESC"
+  ).all() as Task[]
+  return {
+    todo:        tasks.filter(t => t.status === "todo"),
+    in_progress: tasks.filter(t => t.status === "in_progress"),
+    done:        tasks.filter(t => t.status === "done"),
+  }
+}
+
+export function moveTask(id: number, status: TaskStatus, position: number): void {
+  db.prepare(
+    "UPDATE tasks SET status = ?, position = ?, completed = ? WHERE id = ?"
+  ).run(status, position, status === "done" ? 1 : 0, id)
 }
 
 export function reorderTasks(orderedIds: number[]): void {
