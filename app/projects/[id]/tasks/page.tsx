@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { TaskList } from "@/app/components/task-list"
 import { SearchInput } from "@/app/components/search-input"
 import { ViewToggle } from "@/app/components/view-toggle"
-import { Plus, ClipboardList, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, ClipboardList, ChevronLeft, ChevronRight, Settings } from "lucide-react"
 
 const PER_PAGE = 10
 
@@ -88,6 +88,11 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{project.name}</h1>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" asChild className="size-8">
+            <Link href={`/projects/${projectId}/settings`}>
+              <Settings className="size-4" />
+            </Link>
+          </Button>
           <ViewToggle active="list" projectId={projectId} />
           <Button asChild size="sm">
             <Link href={`${basePath}/new`}>

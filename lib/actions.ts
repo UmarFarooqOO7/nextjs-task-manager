@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { auth } from "./auth"
-import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject } from "./data"
+import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject, createComment } from "./data"
+import { createApiKey, revokeApiKey } from "./api-auth"
 import { emitTaskEvent } from "./emitter"
 import type { ActionState, TaskStatus } from "./types"
 
@@ -147,4 +148,43 @@ export async function moveTaskAction(
   revalidatePath(paths.tasks)
   revalidatePath(paths.board)
   emitTaskEvent({ type: "moved", taskId: id, taskTitle: task?.title ?? "", actor })
+}
+
+// ── API Keys ────────────────────────────────────────────────────────────────
+
+export async function createApiKeyAction(
+  projectId: number,
+  _prevState: ActionState & { generatedKey?: string },
+  formData: FormData
+): Promise<ActionState & { generatedKey?: string }> {
+  await requireUserId()
+  const name = formData.get("name")?.toString().trim() ?? ""
+  if (!name) return { error: "Key name is required." }
+
+  const { key } = await createApiKey(projectId, name)
+  revalidatePath(`/projects/${projectId}/settings`)
+  return { generatedKey: key }
+}
+
+export async function revokeApiKeyAction(projectId: number, keyId: number): Promise<void> {
+  await requireUserId()
+  await revokeApiKey(keyId, projectId)
+  revalidatePath(`/projects/${projectId}/settings`)
+}
+
+// ── Comments ────────────────────────────────────────────────────────────────
+
+export async function addCommentAction(
+  projectId: number,
+  taskId: number,
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const actor = await getActor()
+  const body = formData.get("body")?.toString().trim() ?? ""
+  if (!body) return { error: "Comment cannot be empty." }
+
+  await createComment({ task_id: taskId, author: actor, author_type: "human", body })
+  revalidatePath(`/projects/${projectId}/tasks/${taskId}`)
+  return {}
 }
