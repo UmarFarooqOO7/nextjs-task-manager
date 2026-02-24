@@ -1,6 +1,6 @@
 import client, { dbReady } from "./db"
 import type { InValue } from "@libsql/client"
-import type { Task, TaskStatus, Project } from "./types"
+import type { Task, TaskStatus, Project, Comment } from "./types"
 
 // ── Projects ────────────────────────────────────────────────────────────────
 
@@ -203,4 +203,28 @@ export async function reorderTasks(orderedIds: number[]): Promise<void> {
     })),
     "write"
   )
+}
+
+// ── Comments ────────────────────────────────────────────────────────────────
+
+export async function getComments(taskId: number): Promise<Comment[]> {
+  await dbReady
+  const result = await client.execute({
+    sql: "SELECT * FROM comments WHERE task_id = ? ORDER BY created_at ASC",
+    args: [taskId],
+  })
+  return result.rows as unknown as Comment[]
+}
+
+export async function createComment(data: {
+  task_id: number
+  author: string
+  author_type: "human" | "agent"
+  body: string
+}) {
+  await dbReady
+  return client.execute({
+    sql: "INSERT INTO comments (task_id, author, author_type, body) VALUES (?, ?, ?, ?)",
+    args: [data.task_id, data.author, data.author_type, data.body],
+  })
 }
