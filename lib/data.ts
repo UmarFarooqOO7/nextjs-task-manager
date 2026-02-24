@@ -163,14 +163,10 @@ export async function createTask(data: {
 }) {
   await dbReady
   const status = data.status ?? "todo"
-  const maxResult = await client.execute({
-    sql: "SELECT COALESCE(MAX(position), 0) as m FROM tasks WHERE project_id = ?",
-    args: [data.project_id],
-  })
-  const maxPos = maxResult.rows[0][0] as number
   return client.execute({
-    sql: "INSERT INTO tasks (title, description, priority, due_date, position, status, project_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    args: [data.title, data.description, data.priority, data.due_date, maxPos + 1, status, data.project_id],
+    sql: `INSERT INTO tasks (title, description, priority, due_date, position, status, project_id)
+          VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE project_id = ?), ?, ?)`,
+    args: [data.title, data.description, data.priority, data.due_date, data.project_id, status, data.project_id],
   })
 }
 

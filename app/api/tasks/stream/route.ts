@@ -1,3 +1,4 @@
+import { auth } from "@/lib/auth"
 import { taskEmitter } from "@/lib/emitter"
 import type { TaskEvent } from "@/lib/types"
 
@@ -23,8 +24,13 @@ function broadcastPresence() {
 }
 
 export async function GET(request: Request) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return new Response("Unauthorized", { status: 401 })
+  }
+
   const url = new URL(request.url)
-  const actor = url.searchParams.get("actor") ?? "Someone"
+  const actor = url.searchParams.get("actor") ?? session.user.name ?? "Someone"
   const clientId = crypto.randomUUID()
   const encoder = new TextEncoder()
   let cleanup: (() => void) | null = null

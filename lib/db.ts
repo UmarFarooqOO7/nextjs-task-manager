@@ -81,6 +81,19 @@ async function initDb() {
   await client.execute(`UPDATE tasks SET position = id WHERE position = 0`)
   await client.execute(`UPDATE tasks SET status = 'done' WHERE completed = 1 AND status = 'todo'`)
 
+  // Indexes
+  const indexes = [
+    `CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_project_position ON tasks(project_id, position)`,
+    `CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(task_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)`,
+  ]
+  for (const sql of indexes) {
+    try { await client.execute(sql) } catch {}
+  }
+
   // FTS5 virtual table for full-text search
   await client.execute(`
     CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(

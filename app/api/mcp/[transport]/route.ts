@@ -8,6 +8,7 @@ import {
   updateTask,
   deleteTask,
   toggleTask,
+  moveTask,
   claimTask,
   getComments,
   createComment,
@@ -122,19 +123,24 @@ const handler = createMcpHandler(
           priority: z.number().int().min(0).max(3).optional().describe("New priority"),
           due_date: z.string().nullable().optional().describe("New due date (YYYY-MM-DD) or null to clear"),
           completed: z.boolean().optional().describe("Mark as completed or not"),
+          status: z.enum(["todo", "in_progress", "done"]).optional().describe("New status"),
         },
       },
-      async ({ task_id, title, description, priority, due_date, completed }, { authInfo }) => {
+      async ({ task_id, title, description, priority, due_date, completed, status }, { authInfo }) => {
         const { projectId, agentName } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
           return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
         }
+        const newCompleted = completed !== undefined ? (completed ? 1 : 0) : (status === "done" ? 1 : task.completed)
         await updateTask(task_id, {
           title: title ?? task.title, description: description ?? task.description,
-          completed: (completed !== undefined ? (completed ? 1 : 0) : task.completed) as 0 | 1,
+          completed: newCompleted as 0 | 1,
           priority: priority ?? task.priority, due_date: due_date !== undefined ? due_date : task.due_date,
         })
+        if (status && status !== task.status) {
+          await moveTask(task_id, status as TaskStatus, task.position)
+        }
         emitTaskEvent({ type: "updated", taskId: task_id, taskTitle: title ?? task.title, actor: `${agentName} (agent)` })
         return { content: [{ type: "text" as const, text: `Task ${task_id} updated successfully.` }] }
       }
@@ -244,7 +250,7 @@ const handler = createMcpHandler(
     )
   },
   { capabilities: {} },
-  { basePath: "/api", maxDuration: 60 }
+  { basePath: "/api/mcp", maxDuration: 60 }
 )
 
 const authedHandler = withMcpAuth(

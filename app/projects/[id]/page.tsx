@@ -36,7 +36,7 @@ export default async function ProjectDashboardPage({ params }: Props) {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {([
           ["Total", stats.total],
           ["Todo", stats.todo],

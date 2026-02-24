@@ -11,6 +11,7 @@ import { KeyboardShortcuts } from "./components/keyboard-shortcuts"
 import { Toaster } from "sonner"
 import { auth, signOut } from "@/lib/auth"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { FolderOpen, LogOut } from "lucide-react"
 
@@ -65,10 +66,12 @@ export default async function RootLayout({
                 {user && (
                   <div className="flex items-center gap-2 ml-1 pl-2 border-l">
                     {user.image && (
-                      <img
+                      <Image
                         src={user.image}
                         alt={user.name ?? ""}
-                        className="size-6 rounded-full"
+                        width={24}
+                        height={24}
+                        className="rounded-full"
                       />
                     )}
                     <span className="text-xs text-muted-foreground hidden sm:inline">
@@ -80,7 +83,7 @@ export default async function RootLayout({
                         await signOut({ redirectTo: "/login" })
                       }}
                     >
-                      <Button variant="ghost" size="icon" type="submit" className="size-7">
+                      <Button variant="ghost" size="icon" type="submit" className="size-7" aria-label="Sign out">
                         <LogOut className="size-3.5" />
                       </Button>
                     </form>

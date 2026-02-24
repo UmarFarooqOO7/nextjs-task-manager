@@ -31,7 +31,7 @@ export function TaskForm({ action, task, returnTo, defaultStatus, projectId }: P
   const [priority, setPriority] = useState(String(task?.priority ?? 0))
   const [status, setStatus] = useState<string>(defaultStatus ?? "todo")
 
-  const taskDetailPath = task && projectId ? `/projects/${projectId}/tasks/${task.id}` : undefined
+  const taskDetailPath = task && projectId ? `/projects/${projectId}/tasks/${task.id}` : "/projects"
   const cancelPath = task ? taskDetailPath : (returnTo ?? (projectId ? `/projects/${projectId}/tasks` : "/projects"))
 
   return (
@@ -134,7 +134,7 @@ export function TaskForm({ action, task, returnTo, defaultStatus, projectId }: P
       <div className="flex gap-3">
         <SubmitButton label={task ? "Update Task" : "Create Task"} />
         <Button variant="outline" asChild>
-          <Link href={cancelPath!}>Cancel</Link>
+          <Link href={cancelPath}>Cancel</Link>
         </Button>
       </div>
     </form>

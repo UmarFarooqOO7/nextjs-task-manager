@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { auth } from "./auth"
-import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject, createComment } from "./data"
+import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject, createComment, getProject } from "./data"
 import { createApiKey, revokeApiKey } from "./api-auth"
 import { emitTaskEvent } from "./emitter"
 import type { ActionState, TaskStatus } from "./types"
@@ -19,6 +19,13 @@ async function requireUserId(): Promise<string> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Not authenticated")
   return session.user.id
+}
+
+async function requireProjectAccess(projectId: number): Promise<string> {
+  const userId = await requireUserId()
+  const project = await getProject(projectId)
+  if (!project || project.owner_id !== userId) throw new Error("Access denied")
+  return userId
 }
 
 function projectPaths(projectId: number) {
@@ -49,6 +56,7 @@ export async function createTaskAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireProjectAccess(projectId)
   const title = formData.get("title")?.toString().trim() ?? ""
   const description = formData.get("description")?.toString().trim() ?? ""
   const priority = Number(formData.get("priority") ?? 0) as 0 | 1 | 2 | 3
@@ -76,6 +84,7 @@ export async function updateTaskAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireProjectAccess(projectId)
   const title = formData.get("title")?.toString().trim() ?? ""
   const description = formData.get("description")?.toString().trim() ?? ""
   const completed = formData.get("completed") === "on" ? 1 : 0
@@ -94,6 +103,7 @@ export async function updateTaskAction(
 }
 
 export async function deleteTaskAction(projectId: number, id: number): Promise<void> {
+  await requireProjectAccess(projectId)
   const actor = await getActor()
   const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
@@ -105,6 +115,7 @@ export async function deleteTaskAction(projectId: number, id: number): Promise<v
 }
 
 export async function toggleTaskAction(projectId: number, id: number): Promise<void> {
+  await requireProjectAccess(projectId)
   const actor = await getActor()
   const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
@@ -116,6 +127,7 @@ export async function toggleTaskAction(projectId: number, id: number): Promise<v
 }
 
 export async function deleteTaskListAction(projectId: number, id: number): Promise<void> {
+  await requireProjectAccess(projectId)
   const actor = await getActor()
   const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
@@ -126,6 +138,7 @@ export async function deleteTaskListAction(projectId: number, id: number): Promi
 }
 
 export async function reorderTasksAction(projectId: number, orderedIds: number[]): Promise<void> {
+  await requireProjectAccess(projectId)
   await reorderTasks(orderedIds)
   const paths = projectPaths(projectId)
   revalidatePath(paths.tasks)
@@ -139,6 +152,7 @@ export async function moveTaskAction(
   status: TaskStatus,
   orderedColumnIds: number[]
 ): Promise<void> {
+  await requireProjectAccess(projectId)
   const actor = await getActor()
   const task = await getTask(id)
   const position = orderedColumnIds.indexOf(id)
@@ -157,7 +171,7 @@ export async function createApiKeyAction(
   _prevState: ActionState & { generatedKey?: string },
   formData: FormData
 ): Promise<ActionState & { generatedKey?: string }> {
-  await requireUserId()
+  await requireProjectAccess(projectId)
   const name = formData.get("name")?.toString().trim() ?? ""
   if (!name) return { error: "Key name is required." }
 
@@ -167,7 +181,7 @@ export async function createApiKeyAction(
 }
 
 export async function revokeApiKeyAction(projectId: number, keyId: number): Promise<void> {
-  await requireUserId()
+  await requireProjectAccess(projectId)
   await revokeApiKey(keyId, projectId)
   revalidatePath(`/projects/${projectId}/settings`)
 }
@@ -180,6 +194,7 @@ export async function addCommentAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireProjectAccess(projectId)
   const actor = await getActor()
   const body = formData.get("body")?.toString().trim() ?? ""
   if (!body) return { error: "Comment cannot be empty." }

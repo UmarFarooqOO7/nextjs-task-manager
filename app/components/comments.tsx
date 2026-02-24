@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useRef, useEffect } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { SubmitButton } from "./submit-button"
 import { Bot, User } from "lucide-react"
@@ -13,6 +13,13 @@ type Props = {
 
 export function Comments({ comments, action }: Props) {
   const [state, formAction] = useActionState(action, {})
+  const formRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => {
+    if (!state.error && formRef.current) {
+      formRef.current.reset()
+    }
+  }, [comments.length, state])
 
   return (
     <div className="flex flex-col gap-4">
@@ -44,7 +51,7 @@ export function Comments({ comments, action }: Props) {
         </ul>
       )}
 
-      <form action={formAction} className="flex flex-col gap-2">
+      <form ref={formRef} action={formAction} className="flex flex-col gap-2">
         {state.error && (
           <p className="text-sm text-destructive">{state.error}</p>
         )}

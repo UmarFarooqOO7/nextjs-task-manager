@@ -61,19 +61,12 @@ export async function validateApiKey(
   const keyHash = await sha256(key)
 
   const result = await client.execute({
-    sql: "SELECT id, project_id, name FROM api_keys WHERE key_hash = ?",
+    sql: "UPDATE api_keys SET last_used_at = datetime('now') WHERE key_hash = ? RETURNING project_id, name",
     args: [keyHash],
   })
 
   if (result.rows.length === 0) return null
 
-  const row = result.rows[0] as unknown as { id: number; project_id: number; name: string }
-
-  // Update last_used_at
-  await client.execute({
-    sql: "UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?",
-    args: [row.id],
-  })
-
+  const row = result.rows[0] as unknown as { project_id: number; name: string }
   return { projectId: row.project_id, agentName: row.name }
 }
