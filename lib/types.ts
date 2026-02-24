@@ -10,6 +10,23 @@ export type Task = {
   due_date: string | null
   position: number
   status: TaskStatus
+  project_id: number
+}
+
+export type User = {
+  id: string
+  name: string
+  email: string | null
+  avatar_url: string | null
+  created_at: string
+}
+
+export type Project = {
+  id: number
+  name: string
+  description: string
+  owner_id: string
+  created_at: string
 }
 
 export type ActionState = {

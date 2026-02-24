@@ -2,18 +2,49 @@
 
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
-import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask } from "./data"
+import { auth } from "./auth"
+import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject } from "./data"
 import { emitTaskEvent } from "./emitter"
 import type { ActionState, TaskStatus } from "./types"
 
 const VALID_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"]
 
 async function getActor(): Promise<string> {
-  return (await cookies()).get("actor")?.value ?? "Someone"
+  const session = await auth()
+  return session?.user?.name ?? "Someone"
+}
+
+async function requireUserId(): Promise<string> {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Not authenticated")
+  return session.user.id
+}
+
+function projectPaths(projectId: number) {
+  return {
+    tasks: `/projects/${projectId}/tasks`,
+    board: `/projects/${projectId}/board`,
+    task: (taskId: number) => `/projects/${projectId}/tasks/${taskId}`,
+  }
+}
+
+export async function createProjectAction(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const userId = await requireUserId()
+  const name = formData.get("name")?.toString().trim() ?? ""
+  const description = formData.get("description")?.toString().trim() ?? ""
+
+  if (!name) return { error: "Project name is required." }
+
+  const result = await createProject({ name, description, owner_id: userId })
+  const projectId = Number(result.lastInsertRowid)
+  redirect(`/projects/${projectId}/tasks`)
 }
 
 export async function createTaskAction(
+  projectId: number,
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
@@ -24,20 +55,22 @@ export async function createTaskAction(
 
   if (!title) return { error: "Title is required." }
 
+  const paths = projectPaths(projectId)
   const returnTo = formData.get("returnTo")?.toString()
-  const safeReturnTo = returnTo === "/tasks/board" ? "/tasks/board" : "/tasks"
+  const safeReturnTo = returnTo === paths.board ? paths.board : paths.tasks
   const statusRaw = formData.get("status")?.toString()
   const status: TaskStatus = VALID_STATUSES.includes(statusRaw as TaskStatus) ? (statusRaw as TaskStatus) : "todo"
 
   const actor = await getActor()
-  const result = await createTask({ title, description, priority, due_date, status })
-  revalidatePath("/tasks")
-  revalidatePath("/tasks/board")
+  const result = await createTask({ title, description, priority, due_date, status, project_id: projectId })
+  revalidatePath(paths.tasks)
+  revalidatePath(paths.board)
   emitTaskEvent({ type: "created", taskId: Number(result.lastInsertRowid), taskTitle: title, actor })
   redirect(safeReturnTo)
 }
 
 export async function updateTaskAction(
+  projectId: number,
   id: number,
   _prevState: ActionState,
   formData: FormData
@@ -51,50 +84,56 @@ export async function updateTaskAction(
   if (!title) return { error: "Title is required." }
 
   const actor = await getActor()
+  const paths = projectPaths(projectId)
   await updateTask(id, { title, description, completed: completed as 0 | 1, priority, due_date })
-  revalidatePath("/tasks")
-  revalidatePath(`/tasks/${id}`)
+  revalidatePath(paths.tasks)
+  revalidatePath(paths.task(id))
   emitTaskEvent({ type: "updated", taskId: id, taskTitle: title, actor })
-  redirect(`/tasks/${id}`)
+  redirect(paths.task(id))
 }
 
-export async function deleteTaskAction(id: number): Promise<void> {
+export async function deleteTaskAction(projectId: number, id: number): Promise<void> {
   const actor = await getActor()
   const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
   await deleteTask(id)
-  revalidatePath("/tasks")
+  const paths = projectPaths(projectId)
+  revalidatePath(paths.tasks)
   emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor })
-  redirect("/tasks")
+  redirect(paths.tasks)
 }
 
-export async function toggleTaskAction(id: number): Promise<void> {
+export async function toggleTaskAction(projectId: number, id: number): Promise<void> {
   const actor = await getActor()
   const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
   await toggleTask(id)
-  revalidatePath(`/tasks/${id}`)
-  revalidatePath("/tasks")
+  const paths = projectPaths(projectId)
+  revalidatePath(paths.task(id))
+  revalidatePath(paths.tasks)
   emitTaskEvent({ type: "toggled", taskId: id, taskTitle, actor })
 }
 
-export async function deleteTaskListAction(id: number): Promise<void> {
+export async function deleteTaskListAction(projectId: number, id: number): Promise<void> {
   const actor = await getActor()
   const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
   await deleteTask(id)
-  revalidatePath("/tasks")
+  const paths = projectPaths(projectId)
+  revalidatePath(paths.tasks)
   emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor })
 }
 
-export async function reorderTasksAction(orderedIds: number[]): Promise<void> {
+export async function reorderTasksAction(projectId: number, orderedIds: number[]): Promise<void> {
   await reorderTasks(orderedIds)
-  revalidatePath("/tasks")
+  const paths = projectPaths(projectId)
+  revalidatePath(paths.tasks)
   const actor = await getActor()
   emitTaskEvent({ type: "reordered", taskId: 0, taskTitle: "", actor })
 }
 
 export async function moveTaskAction(
+  projectId: number,
   id: number,
   status: TaskStatus,
   orderedColumnIds: number[]
@@ -104,7 +143,8 @@ export async function moveTaskAction(
   const position = orderedColumnIds.indexOf(id)
   await moveTask(id, status, position)
   await reorderTasks(orderedColumnIds)
-  revalidatePath("/tasks")
-  revalidatePath("/tasks/board")
+  const paths = projectPaths(projectId)
+  revalidatePath(paths.tasks)
+  revalidatePath(paths.board)
   emitTaskEvent({ type: "moved", taskId: id, taskTitle: task?.title ?? "", actor })
 }

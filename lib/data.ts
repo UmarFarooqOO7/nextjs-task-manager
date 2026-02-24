@@ -1,16 +1,48 @@
 import client, { dbReady } from "./db"
 import type { InValue } from "@libsql/client"
-import type { Task, TaskStatus } from "./types"
+import type { Task, TaskStatus, Project } from "./types"
 
-export async function getTasks(): Promise<Task[]> {
+// ── Projects ────────────────────────────────────────────────────────────────
+
+export async function getProjectsByOwner(ownerId: string): Promise<Project[]> {
   await dbReady
-  const result = await client.execute(
-    "SELECT * FROM tasks ORDER BY position ASC, created_at DESC"
-  )
+  const result = await client.execute({
+    sql: "SELECT * FROM projects WHERE owner_id = ? ORDER BY created_at DESC",
+    args: [ownerId],
+  })
+  return result.rows as unknown as Project[]
+}
+
+export async function getProject(id: number): Promise<Project | undefined> {
+  await dbReady
+  const result = await client.execute({
+    sql: "SELECT * FROM projects WHERE id = ?",
+    args: [id],
+  })
+  return result.rows[0] as unknown as Project | undefined
+}
+
+export async function createProject(data: { name: string; description: string; owner_id: string }) {
+  await dbReady
+  return client.execute({
+    sql: "INSERT INTO projects (name, description, owner_id) VALUES (?, ?, ?)",
+    args: [data.name, data.description, data.owner_id],
+  })
+}
+
+// ── Tasks ───────────────────────────────────────────────────────────────────
+
+export async function getTasks(projectId: number): Promise<Task[]> {
+  await dbReady
+  const result = await client.execute({
+    sql: "SELECT * FROM tasks WHERE project_id = ? ORDER BY position ASC, created_at DESC",
+    args: [projectId],
+  })
   return result.rows as unknown as Task[]
 }
 
 export async function getTasksPage(
+  projectId: number,
   page: number,
   perPage: number,
   opts: { q?: string; priority?: number; sort?: string } = {}
@@ -27,25 +59,25 @@ export async function getTasksPage(
         sql: `
           SELECT tasks.* FROM tasks
           JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-          WHERE tasks_fts MATCH ?
+          WHERE tasks_fts MATCH ? AND tasks.project_id = ?
           ORDER BY rank
         `,
-        args: [`${safe}*`],
+        args: [`${safe}*`, projectId],
       })
       const tasks = result.rows as unknown as Task[]
       return { tasks, total: tasks.length }
     }
   }
 
-  const conditions: string[] = []
-  const params: InValue[] = []
+  const conditions: string[] = ["project_id = ?"]
+  const params: InValue[] = [projectId]
 
   if (priority !== undefined && priority > 0) {
     conditions.push("priority = ?")
     params.push(priority)
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
+  const where = `WHERE ${conditions.join(" AND ")}`
 
   let orderBy = "position ASC, created_at DESC"
   if (sort === "due") {
@@ -70,18 +102,18 @@ export async function getTasksPage(
   }
 }
 
-export async function searchTasks(q: string): Promise<Task[]> {
+export async function searchTasks(projectId: number, q: string): Promise<Task[]> {
   await dbReady
   const safe = q.replace(/['"*]/g, " ").trim()
-  if (!safe) return getTasks()
+  if (!safe) return getTasks(projectId)
   const result = await client.execute({
     sql: `
       SELECT tasks.* FROM tasks
       JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-      WHERE tasks_fts MATCH ?
+      WHERE tasks_fts MATCH ? AND tasks.project_id = ?
       ORDER BY rank
     `,
-    args: [`${safe}*`],
+    args: [`${safe}*`, projectId],
   })
   return result.rows as unknown as Task[]
 }
@@ -101,16 +133,18 @@ export async function createTask(data: {
   priority: number
   due_date: string | null
   status?: TaskStatus
+  project_id: number
 }) {
   await dbReady
   const status = data.status ?? "todo"
-  const maxResult = await client.execute(
-    "SELECT COALESCE(MAX(position), 0) as m FROM tasks"
-  )
+  const maxResult = await client.execute({
+    sql: "SELECT COALESCE(MAX(position), 0) as m FROM tasks WHERE project_id = ?",
+    args: [data.project_id],
+  })
   const maxPos = maxResult.rows[0][0] as number
   return client.execute({
-    sql: "INSERT INTO tasks (title, description, priority, due_date, position, status) VALUES (?, ?, ?, ?, ?, ?)",
-    args: [data.title, data.description, data.priority, data.due_date, maxPos + 1, status],
+    sql: "INSERT INTO tasks (title, description, priority, due_date, position, status, project_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    args: [data.title, data.description, data.priority, data.due_date, maxPos + 1, status, data.project_id],
   })
 }
 
@@ -138,11 +172,12 @@ export async function toggleTask(id: number) {
   })
 }
 
-export async function getTasksBoard(): Promise<Record<TaskStatus, Task[]>> {
+export async function getTasksBoard(projectId: number): Promise<Record<TaskStatus, Task[]>> {
   await dbReady
-  const result = await client.execute(
-    "SELECT * FROM tasks ORDER BY position ASC, created_at DESC"
-  )
+  const result = await client.execute({
+    sql: "SELECT * FROM tasks WHERE project_id = ? ORDER BY position ASC, created_at DESC",
+    args: [projectId],
+  })
   const tasks = result.rows as unknown as Task[]
   return {
     todo:        tasks.filter(t => t.status === "todo"),
