@@ -8,6 +8,7 @@ import {
   updateTask,
   deleteTask,
   toggleTask,
+  claimTask,
   getComments,
   createComment,
 } from "@/lib/data"
@@ -174,6 +175,24 @@ const handler = createMcpHandler(
         await deleteTask(task_id)
         emitTaskEvent({ type: "deleted", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)` })
         return { content: [{ type: "text" as const, text: `Task "${task.title}" deleted.` }] }
+      }
+    )
+
+    server.registerTool(
+      "claim_task",
+      {
+        title: "Claim Task",
+        description: "Claim a task so others know you are working on it.",
+        inputSchema: { task_id: z.number().int().describe("The task ID to claim") },
+      },
+      async ({ task_id }, { authInfo }) => {
+        const { projectId, agentName } = getAuth(authInfo)
+        const task = await getTask(task_id)
+        if (!task || task.project_id !== projectId) {
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+        }
+        await claimTask(task_id, agentName)
+        return { content: [{ type: "text" as const, text: `Task "${task.title}" claimed by ${agentName}.` }] }
       }
     )
 

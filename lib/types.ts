@@ -11,6 +11,7 @@ export type Task = {
   position: number
   status: TaskStatus
   project_id: number
+  claimed_by: string | null
 }
 
 export type User = {

@@ -71,6 +71,7 @@ async function initDb() {
     `ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'`,
     `ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id)`,
+    `ALTER TABLE tasks ADD COLUMN claimed_by TEXT`,
   ]
   for (const sql of migrations) {
     try { await client.execute(sql) } catch {}

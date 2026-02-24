@@ -205,6 +205,14 @@ export async function reorderTasks(orderedIds: number[]): Promise<void> {
   )
 }
 
+export async function claimTask(id: number, claimedBy: string | null): Promise<void> {
+  await dbReady
+  await client.execute({
+    sql: "UPDATE tasks SET claimed_by = ? WHERE id = ?",
+    args: [claimedBy, id],
+  })
+}
+
 // ── Comments ────────────────────────────────────────────────────────────────
 
 export async function getComments(taskId: number): Promise<Comment[]> {
