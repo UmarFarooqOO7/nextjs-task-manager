@@ -23,12 +23,16 @@ type Props = {
   task?: Task
   returnTo?: string
   defaultStatus?: TaskStatus
+  projectId?: number
 }
 
-export function TaskForm({ action, task, returnTo, defaultStatus }: Props) {
+export function TaskForm({ action, task, returnTo, defaultStatus, projectId }: Props) {
   const [state, formAction] = useActionState(action, {})
   const [priority, setPriority] = useState(String(task?.priority ?? 0))
   const [status, setStatus] = useState<string>(defaultStatus ?? "todo")
+
+  const taskDetailPath = task && projectId ? `/projects/${projectId}/tasks/${task.id}` : undefined
+  const cancelPath = task ? taskDetailPath : (returnTo ?? (projectId ? `/projects/${projectId}/tasks` : "/projects"))
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
@@ -130,7 +134,7 @@ export function TaskForm({ action, task, returnTo, defaultStatus }: Props) {
       <div className="flex gap-3">
         <SubmitButton label={task ? "Update Task" : "Create Task"} />
         <Button variant="outline" asChild>
-          <Link href={task ? `/tasks/${task.id}` : (returnTo ?? "/tasks")}>Cancel</Link>
+          <Link href={cancelPath!}>Cancel</Link>
         </Button>
       </div>
     </form>

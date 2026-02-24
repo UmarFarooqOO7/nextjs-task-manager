@@ -4,11 +4,11 @@ import Link from "next/link"
 import { List, LayoutDashboard } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export function ViewToggle({ active }: { active: "list" | "board" }) {
+export function ViewToggle({ active, projectId }: { active: "list" | "board"; projectId: number }) {
   return (
     <div className="flex rounded-md border overflow-hidden">
       <Link
-        href="/tasks"
+        href={`/projects/${projectId}/tasks`}
         className={cn(
           "px-3 py-1.5 transition-colors hover:bg-accent",
           active === "list" && "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -18,7 +18,7 @@ export function ViewToggle({ active }: { active: "list" | "board" }) {
         <List className="size-4" />
       </Link>
       <Link
-        href="/tasks/board"
+        href={`/projects/${projectId}/board`}
         className={cn(
           "px-3 py-1.5 transition-colors hover:bg-accent",
           active === "board" && "bg-primary text-primary-foreground hover:bg-primary/90"

@@ -24,6 +24,8 @@ export function KanbanCard({ task, isDragging = false }: Props) {
     transition,
   }
 
+  const taskPath = `/projects/${task.project_id}/tasks/${task.id}`
+
   if (isDragging) {
     return (
       <Card className="shadow-2xl rotate-1 opacity-95 cursor-grabbing">
@@ -61,7 +63,7 @@ export function KanbanCard({ task, isDragging = false }: Props) {
             <GripVertical className="size-4 mt-0.5 shrink-0 text-muted-foreground/20" />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <Link
-                href={`/tasks/${task.id}`}
+                href={taskPath}
                 className="font-medium text-sm truncate hover:underline"
                 onClick={e => e.stopPropagation()}
               >

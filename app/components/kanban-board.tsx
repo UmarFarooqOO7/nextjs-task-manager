@@ -76,9 +76,10 @@ function isColumnStatus(id: string | number): id is TaskStatus {
 
 type Props = {
   initialColumns: Columns
+  projectId: number
 }
 
-export function KanbanBoard({ initialColumns }: Props) {
+export function KanbanBoard({ initialColumns, projectId }: Props) {
   const [optimisticColumns, applyAction] = useOptimistic(initialColumns, applyOptimistic)
   const [, startTransition] = useTransition()
   const [activeTask, setActiveTask] = useState<Task | null>(null)
@@ -87,6 +88,8 @@ export function KanbanBoard({ initialColumns }: Props) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
+
+  const boundMoveTask = moveTaskAction.bind(null, projectId)
 
   function handleDragStart(event: DragStartEvent) {
     const taskId = Number(event.active.id)
@@ -124,7 +127,6 @@ export function KanbanBoard({ initialColumns }: Props) {
     const fromStatus = findColumnForTask(optimisticColumns, taskId)
     if (!fromStatus) return
 
-    // Determine target column
     let toStatus: TaskStatus
     if (isColumnStatus(over.id)) {
       toStatus = over.id as TaskStatus
@@ -140,7 +142,6 @@ export function KanbanBoard({ initialColumns }: Props) {
 
     let toIndex: number
     if (fromStatus === toStatus) {
-      // Same column reorder
       if (isColumnStatus(over.id)) {
         toIndex = toCol.length - 1
       } else {
@@ -149,7 +150,6 @@ export function KanbanBoard({ initialColumns }: Props) {
       }
       if (fromIndex === toIndex) return
     } else {
-      // Cross-column move
       if (isColumnStatus(over.id)) {
         toIndex = toCol.length
       } else {
@@ -161,7 +161,6 @@ export function KanbanBoard({ initialColumns }: Props) {
     startTransition(async () => {
       applyAction({ type: "move", taskId, fromStatus, toStatus, fromIndex, toIndex })
 
-      // Compute the final ordered ids for the destination column after the move
       let finalDestCol: Task[]
       if (fromStatus === toStatus) {
         finalDestCol = arrayMove(fromCol, fromIndex, toIndex)
@@ -171,7 +170,7 @@ export function KanbanBoard({ initialColumns }: Props) {
         finalDestCol.splice(toIndex, 0, task)
       }
 
-      await moveTaskAction(taskId, toStatus, finalDestCol.map(t => t.id))
+      await boundMoveTask(taskId, toStatus, finalDestCol.map(t => t.id))
     })
   }
 

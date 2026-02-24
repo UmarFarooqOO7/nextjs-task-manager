@@ -3,17 +3,7 @@
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { generateName } from "@/lib/names"
 import type { TaskEvent } from "@/lib/types"
-
-function getOrCreateActor(): string {
-  const match = document.cookie.match(/(?:^|;\s*)actor=([^;]+)/)
-  if (match) return decodeURIComponent(match[1])
-  const name = generateName()
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()
-  document.cookie = `actor=${encodeURIComponent(name)}; expires=${expires}; path=/`
-  return name
-}
 
 function toastMessage(event: TaskEvent): string {
   switch (event.type) {
@@ -26,13 +16,11 @@ function toastMessage(event: TaskEvent): string {
   }
 }
 
-export function TaskRealtime() {
+export function TaskRealtime({ userName }: { userName?: string }) {
   const router = useRouter()
-  const actorRef = useRef<string>("")
+  const actorRef = useRef<string>(userName ?? "Someone")
 
   useEffect(() => {
-    actorRef.current = getOrCreateActor()
-
     let es: EventSource
     let retryTimeout: ReturnType<typeof setTimeout>
 
@@ -43,7 +31,6 @@ export function TaskRealtime() {
       es.addEventListener("task_event", (e: MessageEvent) => {
         const payload: TaskEvent = JSON.parse(e.data)
         router.refresh()
-        // Dispatch for activity feed
         window.dispatchEvent(new CustomEvent("sse:task_event", { detail: payload }))
         if (payload.actor !== actorRef.current) {
           toast(toastMessage(payload))

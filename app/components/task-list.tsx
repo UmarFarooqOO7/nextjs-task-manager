@@ -51,11 +51,13 @@ function applyOptimistic(tasks: Task[], action: OptimisticAction): Task[] {
 function SortableTaskRow({
   task,
   query,
+  projectId,
   onToggle,
   onDelete,
 }: {
   task: Task
   query: string
+  projectId: number
   onToggle: (id: number) => void
   onDelete: (id: number) => void
 }) {
@@ -67,6 +69,8 @@ function SortableTaskRow({
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+
+  const basePath = `/projects/${projectId}/tasks`
 
   return (
     <li ref={setNodeRef} style={style}>
@@ -99,7 +103,7 @@ function SortableTaskRow({
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex items-center gap-2 min-w-0">
               <Link
-                href={`/tasks/${task.id}`}
+                href={`${basePath}/${task.id}`}
                 className="truncate font-medium hover:underline"
               >
                 <Highlight text={task.title} query={query} />
@@ -119,7 +123,7 @@ function SortableTaskRow({
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-1">
             <Button variant="ghost" size="sm" asChild>
-              <Link href={`/tasks/${task.id}/edit`}>Edit</Link>
+              <Link href={`${basePath}/${task.id}/edit`}>Edit</Link>
             </Button>
             <DeleteDialog
               action={async () => { await onDelete(task.id) }}
@@ -137,12 +141,13 @@ function SortableTaskRow({
 type Props = {
   tasks: Task[]
   query: string
+  projectId: number
   toggleAction: (id: number) => Promise<void>
   deleteAction: (id: number) => Promise<void>
   reorderAction: (ids: number[]) => Promise<void>
 }
 
-export function TaskList({ tasks: initialTasks, query, toggleAction, deleteAction, reorderAction }: Props) {
+export function TaskList({ tasks: initialTasks, query, projectId, toggleAction, deleteAction, reorderAction }: Props) {
   const [optimisticTasks, applyAction] = useOptimistic(initialTasks, applyOptimistic)
   const [, startTransition] = useTransition()
   const [isDndEnabled] = useState(true)
@@ -178,7 +183,6 @@ export function TaskList({ tasks: initialTasks, query, toggleAction, deleteActio
   }
 
   if (!isDndEnabled || query) {
-    // During search, disable DnD (order is by relevance)
     return (
       <ul className="flex flex-col gap-2">
         {optimisticTasks.map(task => (
@@ -186,6 +190,7 @@ export function TaskList({ tasks: initialTasks, query, toggleAction, deleteActio
             key={task.id}
             task={task}
             query={query}
+            projectId={projectId}
             onToggle={handleToggle}
             onDelete={handleDelete}
           />
@@ -203,6 +208,7 @@ export function TaskList({ tasks: initialTasks, query, toggleAction, deleteActio
               key={task.id}
               task={task}
               query={query}
+              projectId={projectId}
               onToggle={handleToggle}
               onDelete={handleDelete}
             />

@@ -16,7 +16,7 @@ import { Plus, Home, Sun, Moon, ClipboardList } from "lucide-react"
 
 type TaskItem = { id: number; title: string }
 
-export function CommandPalette() {
+export function CommandPalette({ projectId }: { projectId?: number }) {
   const [open, setOpen] = useState(false)
   const [tasks, setTasks] = useState<TaskItem[]>([])
   const router = useRouter()
@@ -34,12 +34,12 @@ export function CommandPalette() {
   }, [])
 
   useEffect(() => {
-    if (!open) return
-    fetch("/api/tasks/search")
+    if (!open || !projectId) return
+    fetch(`/api/tasks/search?projectId=${projectId}`)
       .then(r => r.json())
       .then(setTasks)
       .catch(() => {})
-  }, [open])
+  }, [open, projectId])
 
   function run(fn: () => void) {
     setOpen(false)
@@ -52,14 +52,16 @@ export function CommandPalette() {
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Navigate">
-          <CommandItem onSelect={() => run(() => router.push("/tasks"))}>
+          <CommandItem onSelect={() => run(() => router.push("/projects"))}>
             <Home className="size-4 mr-2" />
-            Home
+            Projects
           </CommandItem>
-          <CommandItem onSelect={() => run(() => router.push("/tasks/new"))}>
-            <Plus className="size-4 mr-2" />
-            New Task
-          </CommandItem>
+          {projectId && (
+            <CommandItem onSelect={() => run(() => router.push(`/projects/${projectId}/tasks/new`))}>
+              <Plus className="size-4 mr-2" />
+              New Task
+            </CommandItem>
+          )}
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Theme">
@@ -70,12 +72,12 @@ export function CommandPalette() {
             Toggle Theme
           </CommandItem>
         </CommandGroup>
-        {tasks.length > 0 && (
+        {tasks.length > 0 && projectId && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Tasks">
               {tasks.map(t => (
-                <CommandItem key={t.id} onSelect={() => run(() => router.push(`/tasks/${t.id}`))}>
+                <CommandItem key={t.id} onSelect={() => run(() => router.push(`/projects/${projectId}/tasks/${t.id}`))}>
                   <ClipboardList className="size-4 mr-2" />
                   {t.title}
                 </CommandItem>
