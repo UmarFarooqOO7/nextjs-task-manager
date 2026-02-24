@@ -1,6 +1,5 @@
 import { auth } from "@/lib/auth"
-import { getProject } from "@/lib/data"
-import { getTasks } from "@/lib/data"
+import { getProject, getTasks } from "@/lib/data"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"

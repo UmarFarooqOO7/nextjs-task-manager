@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth"
+import { getProject } from "@/lib/data"
 import { taskEmitter } from "@/lib/emitter"
 import type { TaskEvent } from "@/lib/types"
 
@@ -36,6 +37,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const actor = url.searchParams.get("actor") ?? session.user.name ?? "Someone"
   const projectId = Number(url.searchParams.get("projectId") || 0)
+
+  // Verify user owns the project
+  if (projectId) {
+    const project = await getProject(projectId)
+    if (!project || project.owner_id !== session.user.id) {
+      return new Response("Forbidden", { status: 403 })
+    }
+  }
   const clientId = crypto.randomUUID()
   const encoder = new TextEncoder()
   let cleanup: (() => void) | null = null

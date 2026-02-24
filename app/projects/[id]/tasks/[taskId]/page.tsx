@@ -22,13 +22,13 @@ export default async function TaskPage({ params }: Props) {
   const session = await auth()
   if (!session?.user?.id) notFound()
 
-  const project = await getProject(projectId)
+  const [project, task, comments] = await Promise.all([
+    getProject(projectId),
+    getTask(taskId),
+    getComments(taskId),
+  ])
   if (!project || project.owner_id !== session.user.id) notFound()
-
-  const task = await getTask(taskId)
   if (!task || task.project_id !== projectId) notFound()
-
-  const comments = await getComments(taskId)
 
   const basePath = `/projects/${projectId}/tasks`
   const boundDelete = deleteTaskAction.bind(null, projectId, task.id)

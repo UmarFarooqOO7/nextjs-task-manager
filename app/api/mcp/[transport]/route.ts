@@ -134,7 +134,9 @@ const handler = createMcpHandler(
         if (!task || task.project_id !== projectId) {
           return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
-        const newCompleted = completed !== undefined ? (completed ? 1 : 0) : (status === "done" ? 1 : task.completed)
+        const newCompleted = completed !== undefined
+          ? (completed ? 1 : 0)
+          : (status ? (status === "done" ? 1 : 0) : task.completed)
         await updateTask(task_id, {
           title: title ?? task.title, description: description ?? task.description,
           completed: newCompleted as 0 | 1,

@@ -17,8 +17,10 @@ export default async function ProjectDashboardPage({ params }: Props) {
   const project = await getProject(projectId)
   if (!project || project.owner_id !== session.user.id) notFound()
 
-  const stats = await getProjectStats(projectId)
-  const agents = await getActiveAgents(projectId)
+  const [stats, agents] = await Promise.all([
+    getProjectStats(projectId),
+    getActiveAgents(projectId),
+  ])
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState, useMemo } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   CommandDialog,
@@ -16,11 +16,17 @@ import { Plus, Home, Sun, Moon, ClipboardList } from "lucide-react"
 
 type TaskItem = { id: number; title: string }
 
-export function CommandPalette({ projectId }: { projectId?: number }) {
+export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [tasks, setTasks] = useState<TaskItem[]>([])
   const router = useRouter()
+  const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
+
+  const projectId = useMemo(() => {
+    const match = pathname.match(/^\/projects\/(\d+)/)
+    return match ? Number(match[1]) : undefined
+  }, [pathname])
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {

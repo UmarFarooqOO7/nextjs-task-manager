@@ -88,7 +88,7 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{project.name}</h1>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild className="size-8">
+          <Button variant="ghost" size="icon" asChild className="size-8" aria-label="Project settings">
             <Link href={`/projects/${projectId}/settings`}>
               <Settings className="size-4" />
             </Link>
@@ -116,7 +116,7 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
                 key={p.value}
                 href={buildUrl({ priority: p.value, page: "" })}
                 className={`rounded-full px-2.5 py-0.5 text-xs border transition-colors ${
-                  String(priorityFilter) === p.value
+                  (priorityFilter === 0 ? "" : String(priorityFilter)) === p.value
                     ? "bg-primary text-primary-foreground border-primary"
                     : "border-border hover:bg-accent"
                 }`}
@@ -170,11 +170,17 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
 
           {!q && totalPages > 1 && (
             <div className="mt-6 flex items-center justify-center gap-1">
-              <Button variant="ghost" size="icon" asChild disabled={safePage <= 1}>
-                <Link href={safePage <= 1 ? "#" : buildUrl({ page: String(safePage - 1) })} aria-label="Previous page">
+              {safePage <= 1 ? (
+                <Button variant="ghost" size="icon" disabled aria-label="Previous page">
                   <ChevronLeft className="size-4" />
-                </Link>
-              </Button>
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" asChild aria-label="Previous page">
+                  <Link href={buildUrl({ page: String(safePage - 1) })}>
+                    <ChevronLeft className="size-4" />
+                  </Link>
+                </Button>
+              )}
 
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <Button
@@ -187,11 +193,17 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
                 </Button>
               ))}
 
-              <Button variant="ghost" size="icon" asChild disabled={safePage >= totalPages}>
-                <Link href={safePage >= totalPages ? "#" : buildUrl({ page: String(safePage + 1) })} aria-label="Next page">
+              {safePage >= totalPages ? (
+                <Button variant="ghost" size="icon" disabled aria-label="Next page">
                   <ChevronRight className="size-4" />
-                </Link>
-              </Button>
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" asChild aria-label="Next page">
+                  <Link href={buildUrl({ page: String(safePage + 1) })}>
+                    <ChevronRight className="size-4" />
+                  </Link>
+                </Button>
+              )}
             </div>
           )}
 

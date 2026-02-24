@@ -91,6 +91,7 @@ export async function updateTaskAction(
   formData: FormData
 ): Promise<ActionState> {
   await requireProjectAccess(projectId)
+  await requireTaskInProject(id, projectId)
   const title = formData.get("title")?.toString().trim() ?? ""
   const description = formData.get("description")?.toString().trim() ?? ""
   const completed = formData.get("completed") === "on" ? 1 : 0

@@ -13,9 +13,10 @@ type Props = {
   label: string
   tasks: Task[]
   isOver: boolean
+  projectId: number
 }
 
-export function KanbanColumn({ status, label, tasks, isOver }: Props) {
+export function KanbanColumn({ status, label, tasks, isOver, projectId }: Props) {
   const { setNodeRef } = useDroppable({ id: status })
 
   return (
@@ -46,7 +47,7 @@ export function KanbanColumn({ status, label, tasks, isOver }: Props) {
       {/* Add task — visible on column hover */}
       <div className="px-2 pb-2">
         <Link
-          href={`/tasks/new?status=${status}&returnTo=/tasks/board`}
+          href={`/projects/${projectId}/tasks/new?status=${status}&returnTo=/projects/${projectId}/board`}
           className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent hover:text-foreground"
           aria-label={`Add task to ${label}`}
         >

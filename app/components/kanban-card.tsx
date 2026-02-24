@@ -57,21 +57,25 @@ export function KanbanCard({ task, isDragging = false }: Props) {
   return (
     <li ref={setNodeRef} style={style} className="list-none">
       <Card
-        {...attributes}
-        {...listeners}
         className={cn(
-          "cursor-grab active:cursor-grabbing touch-none transition-colors hover:bg-accent/40",
+          "transition-colors hover:bg-accent/40",
           isSortableDragging && "opacity-40 shadow-lg"
         )}
       >
         <CardContent className="px-3 py-3">
           <div className="flex items-start gap-2">
-            <GripVertical className="size-4 mt-0.5 shrink-0 text-muted-foreground/20" />
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing touch-none shrink-0 text-muted-foreground/20 hover:text-muted-foreground"
+              aria-label="Drag to reorder"
+            >
+              <GripVertical className="size-4 mt-0.5" />
+            </button>
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <Link
                 href={taskPath}
                 className="font-medium text-sm truncate hover:underline"
-                onClick={e => e.stopPropagation()}
               >
                 {task.title}
               </Link>

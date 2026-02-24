@@ -191,6 +191,7 @@ export function KanbanBoard({ initialColumns, projectId }: Props) {
             label={COLUMN_LABELS[status]}
             tasks={optimisticColumns[status]}
             isOver={overColumn === status}
+            projectId={projectId}
           />
         ))}
       </div>
