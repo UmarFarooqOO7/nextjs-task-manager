@@ -24,7 +24,7 @@ export default async function ProjectDashboardPage({ params }: Props) {
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{project.name}</h1>
-        <Button variant="ghost" size="icon" asChild className="size-8">
+        <Button variant="ghost" size="icon" asChild className="size-8" aria-label="Project settings">
           <Link href={`/projects/${projectId}/settings`}>
             <Settings className="size-4" />
           </Link>

@@ -28,6 +28,12 @@ async function requireProjectAccess(projectId: number): Promise<string> {
   return userId
 }
 
+async function requireTaskInProject(taskId: number, projectId: number) {
+  const task = await getTask(taskId)
+  if (!task || task.project_id !== projectId) throw new Error("Task not found")
+  return task
+}
+
 function projectPaths(projectId: number) {
   return {
     tasks: `/projects/${projectId}/tasks`,
@@ -74,7 +80,7 @@ export async function createTaskAction(
   const result = await createTask({ title, description, priority, due_date, status, project_id: projectId })
   revalidatePath(paths.tasks)
   revalidatePath(paths.board)
-  emitTaskEvent({ type: "created", taskId: Number(result.lastInsertRowid), taskTitle: title, actor })
+  emitTaskEvent({ type: "created", taskId: Number(result.lastInsertRowid), taskTitle: title, actor, projectId })
   redirect(safeReturnTo)
 }
 
@@ -98,52 +104,52 @@ export async function updateTaskAction(
   await updateTask(id, { title, description, completed: completed as 0 | 1, priority, due_date })
   revalidatePath(paths.tasks)
   revalidatePath(paths.task(id))
-  emitTaskEvent({ type: "updated", taskId: id, taskTitle: title, actor })
+  emitTaskEvent({ type: "updated", taskId: id, taskTitle: title, actor, projectId })
   redirect(paths.task(id))
 }
 
 export async function deleteTaskAction(projectId: number, id: number): Promise<void> {
   await requireProjectAccess(projectId)
   const actor = await getActor()
-  const task = await getTask(id)
-  const taskTitle = task?.title ?? "Unknown"
+  const task = await requireTaskInProject(id, projectId)
+  const taskTitle = task.title
   await deleteTask(id)
   const paths = projectPaths(projectId)
   revalidatePath(paths.tasks)
-  emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor })
+  emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor, projectId })
   redirect(paths.tasks)
 }
 
 export async function toggleTaskAction(projectId: number, id: number): Promise<void> {
   await requireProjectAccess(projectId)
   const actor = await getActor()
-  const task = await getTask(id)
-  const taskTitle = task?.title ?? "Unknown"
+  const task = await requireTaskInProject(id, projectId)
+  const taskTitle = task.title
   await toggleTask(id)
   const paths = projectPaths(projectId)
   revalidatePath(paths.task(id))
   revalidatePath(paths.tasks)
-  emitTaskEvent({ type: "toggled", taskId: id, taskTitle, actor })
+  emitTaskEvent({ type: "toggled", taskId: id, taskTitle, actor, projectId })
 }
 
 export async function deleteTaskListAction(projectId: number, id: number): Promise<void> {
   await requireProjectAccess(projectId)
   const actor = await getActor()
-  const task = await getTask(id)
-  const taskTitle = task?.title ?? "Unknown"
+  const task = await requireTaskInProject(id, projectId)
+  const taskTitle = task.title
   await deleteTask(id)
   const paths = projectPaths(projectId)
   revalidatePath(paths.tasks)
-  emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor })
+  emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor, projectId })
 }
 
 export async function reorderTasksAction(projectId: number, orderedIds: number[]): Promise<void> {
   await requireProjectAccess(projectId)
-  await reorderTasks(orderedIds)
+  await reorderTasks(orderedIds, projectId)
   const paths = projectPaths(projectId)
   revalidatePath(paths.tasks)
   const actor = await getActor()
-  emitTaskEvent({ type: "reordered", taskId: 0, taskTitle: "", actor })
+  emitTaskEvent({ type: "reordered", taskId: 0, taskTitle: "", actor, projectId })
 }
 
 export async function moveTaskAction(
@@ -154,14 +160,14 @@ export async function moveTaskAction(
 ): Promise<void> {
   await requireProjectAccess(projectId)
   const actor = await getActor()
-  const task = await getTask(id)
+  const task = await requireTaskInProject(id, projectId)
   const position = orderedColumnIds.indexOf(id)
   await moveTask(id, status, position)
-  await reorderTasks(orderedColumnIds)
+  await reorderTasks(orderedColumnIds, projectId)
   const paths = projectPaths(projectId)
   revalidatePath(paths.tasks)
   revalidatePath(paths.board)
-  emitTaskEvent({ type: "moved", taskId: id, taskTitle: task?.title ?? "", actor })
+  emitTaskEvent({ type: "moved", taskId: id, taskTitle: task?.title ?? "", actor, projectId })
 }
 
 // ── API Keys ────────────────────────────────────────────────────────────────
@@ -195,6 +201,7 @@ export async function addCommentAction(
   formData: FormData
 ): Promise<ActionState> {
   await requireProjectAccess(projectId)
+  await requireTaskInProject(taskId, projectId)
   const actor = await getActor()
   const body = formData.get("body")?.toString().trim() ?? ""
   if (!body) return { error: "Comment cannot be empty." }

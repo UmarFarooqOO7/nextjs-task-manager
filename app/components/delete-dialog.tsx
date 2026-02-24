@@ -24,9 +24,12 @@ export function DeleteDialog({ action, compact = false }: Props) {
 
   async function handleConfirm() {
     setPending(true)
-    await action()
-    setOpen(false)
-    setPending(false)
+    try {
+      await action()
+      setOpen(false)
+    } finally {
+      setPending(false)
+    }
   }
 
   return (

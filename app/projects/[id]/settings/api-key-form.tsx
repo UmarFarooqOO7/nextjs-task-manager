@@ -62,7 +62,7 @@ export function ApiKeyForm({ action }: Props) {
             <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono break-all">
               {state.generatedKey}
             </code>
-            <Button variant="outline" size="icon" onClick={copyKey} className="shrink-0">
+            <Button variant="outline" size="icon" onClick={copyKey} className="shrink-0" aria-label="Copy API key">
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             </Button>
           </div>

@@ -40,6 +40,7 @@ export function ApiKeyList({ apiKeys, revokeAction }: Props) {
             size="icon"
             className="size-7 text-destructive hover:text-destructive"
             disabled={isPending}
+            aria-label={`Revoke key ${k.name}`}
             onClick={() => {
               startTransition(async () => {
                 await revokeAction(k.id)

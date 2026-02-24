@@ -10,7 +10,7 @@ function nameToHsl(name: string): string {
 }
 
 function initials(name: string): string {
-  return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
+  return name.split(" ").filter(Boolean).map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?"
 }
 
 export function PresenceAvatars() {
@@ -35,6 +35,8 @@ export function PresenceAvatars() {
         <div
           key={`${actor}-${i}`}
           title={actor}
+          role="img"
+          aria-label={actor}
           className="size-7 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold text-white select-none"
           style={{ backgroundColor: nameToHsl(actor) }}
         >

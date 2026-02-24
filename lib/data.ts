@@ -81,17 +81,25 @@ export async function getTasksPage(
   if (q) {
     const safe = q.replace(/['"*]/g, " ").trim()
     if (safe) {
-      const result = await client.execute({
-        sql: `
-          SELECT tasks.* FROM tasks
-          JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-          WHERE tasks_fts MATCH ? AND tasks.project_id = ?
-          ORDER BY rank
-        `,
-        args: [`${safe}*`, projectId],
-      })
-      const tasks = result.rows as unknown as Task[]
-      return { tasks, total: tasks.length }
+      const [dataResult, countResult] = await client.batch([
+        {
+          sql: `SELECT tasks.* FROM tasks
+                JOIN tasks_fts ON tasks.id = tasks_fts.rowid
+                WHERE tasks_fts MATCH ? AND tasks.project_id = ?
+                ORDER BY rank LIMIT ? OFFSET ?`,
+          args: [`${safe}*`, projectId, perPage, offset],
+        },
+        {
+          sql: `SELECT COUNT(*) as total FROM tasks
+                JOIN tasks_fts ON tasks.id = tasks_fts.rowid
+                WHERE tasks_fts MATCH ? AND tasks.project_id = ?`,
+          args: [`${safe}*`, projectId],
+        },
+      ], "read")
+      return {
+        tasks: dataResult.rows as unknown as Task[],
+        total: (countResult.rows[0] as unknown as { total: number }).total,
+      }
     }
   }
 
@@ -112,19 +120,20 @@ export async function getTasksPage(
     orderBy = "created_at DESC"
   }
 
-  const tasksResult = await client.execute({
-    sql: `SELECT * FROM tasks ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
-    args: [...params, perPage, offset],
-  })
-
-  const totalResult = await client.execute({
-    sql: `SELECT COUNT(*) as total FROM tasks ${where}`,
-    args: params,
-  })
+  const [tasksResult, totalResult] = await client.batch([
+    {
+      sql: `SELECT * FROM tasks ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+      args: [...params, perPage, offset],
+    },
+    {
+      sql: `SELECT COUNT(*) as total FROM tasks ${where}`,
+      args: params,
+    },
+  ], "read")
 
   return {
     tasks: tasksResult.rows as unknown as Task[],
-    total: totalResult.rows[0][0] as number,
+    total: (totalResult.rows[0] as unknown as { total: number }).total,
   }
 }
 
@@ -216,12 +225,14 @@ export async function moveTask(id: number, status: TaskStatus, position: number)
   })
 }
 
-export async function reorderTasks(orderedIds: number[]): Promise<void> {
+export async function reorderTasks(orderedIds: number[], projectId?: number): Promise<void> {
   await dbReady
   await client.batch(
     orderedIds.map((id, i) => ({
-      sql: "UPDATE tasks SET position = ? WHERE id = ?",
-      args: [i, id],
+      sql: projectId
+        ? "UPDATE tasks SET position = ? WHERE id = ? AND project_id = ?"
+        : "UPDATE tasks SET position = ? WHERE id = ?",
+      args: projectId ? [i, id, projectId] : [i, id],
     })),
     "write"
   )

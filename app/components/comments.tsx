@@ -55,7 +55,7 @@ export function Comments({ comments, action }: Props) {
         {state.error && (
           <p className="text-sm text-destructive">{state.error}</p>
         )}
-        <Textarea name="body" placeholder="Add a comment..." rows={2} required />
+        <Textarea name="body" placeholder="Add a comment..." rows={2} required aria-label="Comment" />
         <div>
           <SubmitButton label="Comment" />
         </div>

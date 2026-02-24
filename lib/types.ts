@@ -60,4 +60,5 @@ export type TaskEvent = {
   taskId: number
   taskTitle: string
   actor: string
+  projectId?: number
 }

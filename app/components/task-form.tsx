@@ -73,7 +73,7 @@ export function TaskForm({ action, task, returnTo, defaultStatus, projectId }: P
         />
       </div>
 
-      <div className={`grid gap-4 ${!task ? "grid-cols-3" : "grid-cols-2"}`}>
+      <div className={`grid gap-4 ${!task ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
         {!task && (
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium">Status</Label>

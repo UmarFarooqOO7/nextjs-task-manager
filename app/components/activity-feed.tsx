@@ -95,8 +95,8 @@ export function ActivityFeedButton() {
               {events.length === 0 ? "No activity yet." : "No matching events."}
             </p>
           )}
-          {filtered.map((ev, i) => (
-            <li key={i} className="flex gap-2.5 border-b pb-3 text-sm last:border-0">
+          {filtered.map((ev) => (
+            <li key={`${ev.receivedAt}-${ev.type}-${ev.taskId}`} className="flex gap-2.5 border-b pb-3 text-sm last:border-0">
               <div className="mt-0.5 shrink-0">
                 {isAgent(ev.actor)
                   ? <Bot className="size-4 text-blue-500" />

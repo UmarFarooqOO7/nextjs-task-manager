@@ -17,11 +17,13 @@ import { emitTaskEvent } from "@/lib/emitter"
 import type { TaskStatus } from "@/lib/types"
 
 function getAuth(authInfo: unknown): { projectId: number; agentName: string } {
-  const extra = (authInfo as { extra?: Record<string, unknown> })?.extra ?? {}
-  return {
-    projectId: extra.projectId as number,
-    agentName: extra.agentName as string,
+  const extra = (authInfo as { extra?: Record<string, unknown> })?.extra
+  const projectId = extra?.projectId
+  const agentName = extra?.agentName
+  if (typeof projectId !== "number" || typeof agentName !== "string") {
+    throw new Error("Invalid authentication: missing projectId or agentName")
   }
+  return { projectId, agentName }
 }
 
 const handler = createMcpHandler(
@@ -71,7 +73,7 @@ const handler = createMcpHandler(
         const { projectId } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
         return {
           content: [{
@@ -106,7 +108,7 @@ const handler = createMcpHandler(
           due_date: due_date ?? null, status: status as TaskStatus | undefined, project_id: projectId,
         })
         const taskId = Number(result.lastInsertRowid)
-        emitTaskEvent({ type: "created", taskId, taskTitle: title, actor: `${agentName} (agent)` })
+        emitTaskEvent({ type: "created", taskId, taskTitle: title, actor: `${agentName} (agent)`, projectId })
         return { content: [{ type: "text" as const, text: JSON.stringify({ id: taskId, title, status: status ?? "todo" }) }] }
       }
     )
@@ -130,7 +132,7 @@ const handler = createMcpHandler(
         const { projectId, agentName } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
         const newCompleted = completed !== undefined ? (completed ? 1 : 0) : (status === "done" ? 1 : task.completed)
         await updateTask(task_id, {
@@ -141,7 +143,7 @@ const handler = createMcpHandler(
         if (status && status !== task.status) {
           await moveTask(task_id, status as TaskStatus, task.position)
         }
-        emitTaskEvent({ type: "updated", taskId: task_id, taskTitle: title ?? task.title, actor: `${agentName} (agent)` })
+        emitTaskEvent({ type: "updated", taskId: task_id, taskTitle: title ?? task.title, actor: `${agentName} (agent)`, projectId })
         return { content: [{ type: "text" as const, text: `Task ${task_id} updated successfully.` }] }
       }
     )
@@ -157,10 +159,11 @@ const handler = createMcpHandler(
         const { projectId, agentName } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
         if (!task.completed) await toggleTask(task_id)
-        emitTaskEvent({ type: "toggled", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)` })
+        if (task.status !== "done") await moveTask(task_id, "done", task.position)
+        emitTaskEvent({ type: "toggled", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
         return { content: [{ type: "text" as const, text: `Task "${task.title}" marked as completed.` }] }
       }
     )
@@ -176,10 +179,10 @@ const handler = createMcpHandler(
         const { projectId, agentName } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
         await deleteTask(task_id)
-        emitTaskEvent({ type: "deleted", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)` })
+        emitTaskEvent({ type: "deleted", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
         return { content: [{ type: "text" as const, text: `Task "${task.title}" deleted.` }] }
       }
     )
@@ -195,7 +198,7 @@ const handler = createMcpHandler(
         const { projectId, agentName } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
         await claimTask(task_id, agentName)
         return { content: [{ type: "text" as const, text: `Task "${task.title}" claimed by ${agentName}.` }] }
@@ -216,7 +219,7 @@ const handler = createMcpHandler(
         const { projectId, agentName } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
         await createComment({ task_id, author: agentName, author_type: "agent", body })
         return { content: [{ type: "text" as const, text: `Comment added to task "${task.title}".` }] }
@@ -234,7 +237,7 @@ const handler = createMcpHandler(
         const { projectId } = getAuth(authInfo)
         const task = await getTask(task_id)
         if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }] }
+          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
         }
         const comments = await getComments(task_id)
         return {

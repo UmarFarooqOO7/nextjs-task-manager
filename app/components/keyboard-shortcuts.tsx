@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Keyboard } from "lucide-react"
 
 const SHORTCUTS = [
-  { keys: ["n"], description: "New task" },
+  { keys: ["n"], description: "New task (in project)" },
   { keys: ["/"], description: "Focus search" },
   { keys: ["Ctrl", "K"], description: "Command palette" },
   { keys: ["?"], description: "Show shortcuts" },
@@ -15,6 +15,7 @@ const SHORTCUTS = [
 
 export function KeyboardShortcuts() {
   const router = useRouter()
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -29,10 +30,13 @@ export function KeyboardShortcuts() {
       if (isEditable) return
 
       switch (e.key) {
-        case "n":
+        case "n": {
+          const match = pathname.match(/^\/projects\/(\d+)/)
+          if (!match) break
           e.preventDefault()
-          router.push("/tasks/new")
+          router.push(`/projects/${match[1]}/tasks/new`)
           break
+        }
         case "/":
           e.preventDefault()
           document.getElementById("search-input")?.focus()

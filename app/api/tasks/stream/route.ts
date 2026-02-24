@@ -4,7 +4,7 @@ import type { TaskEvent } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 
-type Client = { send: (chunk: string) => void; actor: string }
+type Client = { send: (chunk: string) => void; actor: string; projectId: number }
 
 declare global {
   // eslint-disable-next-line no-var
@@ -15,11 +15,15 @@ if (!(globalThis.__sseClients instanceof Map)) {
   globalThis.__sseClients = new Map()
 }
 
-function broadcastPresence() {
-  const roster = Array.from(globalThis.__sseClients!.values()).map(c => c.actor)
+function broadcastPresence(projectId: number) {
+  const roster = Array.from(globalThis.__sseClients!.values())
+    .filter(c => c.projectId === projectId)
+    .map(c => c.actor)
   const data = `event: presence\ndata: ${JSON.stringify({ roster })}\n\n`
-  for (const { send } of globalThis.__sseClients!.values()) {
-    send(data)
+  for (const client of globalThis.__sseClients!.values()) {
+    if (client.projectId === projectId) {
+      client.send(data)
+    }
   }
 }
 
@@ -31,6 +35,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const actor = url.searchParams.get("actor") ?? session.user.name ?? "Someone"
+  const projectId = Number(url.searchParams.get("projectId") || 0)
   const clientId = crypto.randomUUID()
   const encoder = new TextEncoder()
   let cleanup: (() => void) | null = null
@@ -46,12 +51,14 @@ export async function GET(request: Request) {
       }
 
       function onTaskEvent(payload: TaskEvent) {
+        // Only send events for this client's project (or if no project scope)
+        if (projectId && payload.projectId && payload.projectId !== projectId) return
         write(`event: task_event\ndata: ${JSON.stringify(payload)}\n\n`)
       }
 
-      globalThis.__sseClients!.set(clientId, { send: write, actor })
+      globalThis.__sseClients!.set(clientId, { send: write, actor, projectId })
       taskEmitter.on("task_event", onTaskEvent)
-      broadcastPresence()
+      broadcastPresence(projectId)
 
       const heartbeat = setInterval(() => {
         write(": heartbeat\n\n")
@@ -61,7 +68,7 @@ export async function GET(request: Request) {
         clearInterval(heartbeat)
         taskEmitter.off("task_event", onTaskEvent)
         globalThis.__sseClients!.delete(clientId)
-        broadcastPresence()
+        broadcastPresence(projectId)
       }
     },
     cancel() {
