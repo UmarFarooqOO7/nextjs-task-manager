@@ -5,7 +5,17 @@ import client, { dbReady } from "./db"
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [GitHub],
   session: { strategy: "jwt" },
+  pages: {
+    signIn: "/login",
+  },
   callbacks: {
+    authorized({ auth: session, request: { nextUrl } }) {
+      const isLoggedIn = !!session?.user
+      const isOnLogin = nextUrl.pathname === "/login"
+      if (isOnLogin) return true // always allow login page
+      if (!isLoggedIn) return false // redirect to login
+      return true
+    },
     async signIn({ user, profile }) {
       await dbReady
       const githubId = String(profile?.id ?? user.id)
