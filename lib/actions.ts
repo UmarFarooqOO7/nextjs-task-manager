@@ -30,7 +30,7 @@ export async function createTaskAction(
   const status: TaskStatus = VALID_STATUSES.includes(statusRaw as TaskStatus) ? (statusRaw as TaskStatus) : "todo"
 
   const actor = await getActor()
-  const result = createTask({ title, description, priority, due_date, status })
+  const result = await createTask({ title, description, priority, due_date, status })
   revalidatePath("/tasks")
   revalidatePath("/tasks/board")
   emitTaskEvent({ type: "created", taskId: Number(result.lastInsertRowid), taskTitle: title, actor })
@@ -51,7 +51,7 @@ export async function updateTaskAction(
   if (!title) return { error: "Title is required." }
 
   const actor = await getActor()
-  updateTask(id, { title, description, completed: completed as 0 | 1, priority, due_date })
+  await updateTask(id, { title, description, completed: completed as 0 | 1, priority, due_date })
   revalidatePath("/tasks")
   revalidatePath(`/tasks/${id}`)
   emitTaskEvent({ type: "updated", taskId: id, taskTitle: title, actor })
@@ -60,9 +60,9 @@ export async function updateTaskAction(
 
 export async function deleteTaskAction(id: number): Promise<void> {
   const actor = await getActor()
-  const task = getTask(id)
+  const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
-  deleteTask(id)
+  await deleteTask(id)
   revalidatePath("/tasks")
   emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor })
   redirect("/tasks")
@@ -70,9 +70,9 @@ export async function deleteTaskAction(id: number): Promise<void> {
 
 export async function toggleTaskAction(id: number): Promise<void> {
   const actor = await getActor()
-  const task = getTask(id)
+  const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
-  toggleTask(id)
+  await toggleTask(id)
   revalidatePath(`/tasks/${id}`)
   revalidatePath("/tasks")
   emitTaskEvent({ type: "toggled", taskId: id, taskTitle, actor })
@@ -80,15 +80,15 @@ export async function toggleTaskAction(id: number): Promise<void> {
 
 export async function deleteTaskListAction(id: number): Promise<void> {
   const actor = await getActor()
-  const task = getTask(id)
+  const task = await getTask(id)
   const taskTitle = task?.title ?? "Unknown"
-  deleteTask(id)
+  await deleteTask(id)
   revalidatePath("/tasks")
   emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor })
 }
 
 export async function reorderTasksAction(orderedIds: number[]): Promise<void> {
-  reorderTasks(orderedIds)
+  await reorderTasks(orderedIds)
   revalidatePath("/tasks")
   const actor = await getActor()
   emitTaskEvent({ type: "reordered", taskId: 0, taskTitle: "", actor })
@@ -100,10 +100,10 @@ export async function moveTaskAction(
   orderedColumnIds: number[]
 ): Promise<void> {
   const actor = await getActor()
-  const task = getTask(id)
+  const task = await getTask(id)
   const position = orderedColumnIds.indexOf(id)
-  moveTask(id, status, position)
-  reorderTasks(orderedColumnIds)
+  await moveTask(id, status, position)
+  await reorderTasks(orderedColumnIds)
   revalidatePath("/tasks")
   revalidatePath("/tasks/board")
   emitTaskEvent({ type: "moved", taskId: id, taskTitle: task?.title ?? "", actor })

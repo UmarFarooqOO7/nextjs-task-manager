@@ -14,7 +14,7 @@ type Props = { params: Promise<{ id: string }> }
 
 export default async function TaskPage({ params }: Props) {
   const { id } = await params
-  const task = getTask(Number(id))
+  const task = await getTask(Number(id))
   if (!task) notFound()
 
   const boundDelete = deleteTaskAction.bind(null, task.id)

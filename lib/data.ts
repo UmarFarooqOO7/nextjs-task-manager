@@ -1,17 +1,21 @@
-import db from "./db"
+import client, { dbReady } from "./db"
+import type { InValue } from "@libsql/client"
 import type { Task, TaskStatus } from "./types"
 
-export function getTasks(): Task[] {
-  return db.prepare(
+export async function getTasks(): Promise<Task[]> {
+  await dbReady
+  const result = await client.execute(
     "SELECT * FROM tasks ORDER BY position ASC, created_at DESC"
-  ).all() as Task[]
+  )
+  return result.rows as unknown as Task[]
 }
 
-export function getTasksPage(
+export async function getTasksPage(
   page: number,
   perPage: number,
   opts: { q?: string; priority?: number; sort?: string } = {}
-): { tasks: Task[]; total: number } {
+): Promise<{ tasks: Task[]; total: number }> {
+  await dbReady
   const { q, priority, sort } = opts
   const offset = (page - 1) * perPage
 
@@ -19,18 +23,22 @@ export function getTasksPage(
   if (q) {
     const safe = q.replace(/['"*]/g, " ").trim()
     if (safe) {
-      const tasks = db.prepare(`
-        SELECT tasks.* FROM tasks
-        JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-        WHERE tasks_fts MATCH ?
-        ORDER BY rank
-      `).all(`${safe}*`) as Task[]
+      const result = await client.execute({
+        sql: `
+          SELECT tasks.* FROM tasks
+          JOIN tasks_fts ON tasks.id = tasks_fts.rowid
+          WHERE tasks_fts MATCH ?
+          ORDER BY rank
+        `,
+        args: [`${safe}*`],
+      })
+      const tasks = result.rows as unknown as Task[]
       return { tasks, total: tasks.length }
     }
   }
 
   const conditions: string[] = []
-  const params: unknown[] = []
+  const params: InValue[] = []
 
   if (priority !== undefined && priority > 0) {
     conditions.push("priority = ?")
@@ -46,65 +54,96 @@ export function getTasksPage(
     orderBy = "created_at DESC"
   }
 
-  const tasks = db
-    .prepare(`SELECT * FROM tasks ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
-    .all(...params, perPage, offset) as Task[]
+  const tasksResult = await client.execute({
+    sql: `SELECT * FROM tasks ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+    args: [...params, perPage, offset],
+  })
 
-  const { total } = db
-    .prepare(`SELECT COUNT(*) as total FROM tasks ${where}`)
-    .get(...params) as { total: number }
+  const totalResult = await client.execute({
+    sql: `SELECT COUNT(*) as total FROM tasks ${where}`,
+    args: params,
+  })
 
-  return { tasks, total }
+  return {
+    tasks: tasksResult.rows as unknown as Task[],
+    total: totalResult.rows[0][0] as number,
+  }
 }
 
-export function searchTasks(q: string): Task[] {
+export async function searchTasks(q: string): Promise<Task[]> {
+  await dbReady
   const safe = q.replace(/['"*]/g, " ").trim()
   if (!safe) return getTasks()
-  return db.prepare(`
-    SELECT tasks.* FROM tasks
-    JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-    WHERE tasks_fts MATCH ?
-    ORDER BY rank
-  `).all(`${safe}*`) as Task[]
+  const result = await client.execute({
+    sql: `
+      SELECT tasks.* FROM tasks
+      JOIN tasks_fts ON tasks.id = tasks_fts.rowid
+      WHERE tasks_fts MATCH ?
+      ORDER BY rank
+    `,
+    args: [`${safe}*`],
+  })
+  return result.rows as unknown as Task[]
 }
 
-export function getTask(id: number): Task | undefined {
-  return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as Task | undefined
+export async function getTask(id: number): Promise<Task | undefined> {
+  await dbReady
+  const result = await client.execute({
+    sql: "SELECT * FROM tasks WHERE id = ?",
+    args: [id],
+  })
+  return result.rows[0] as unknown as Task | undefined
 }
 
-export function createTask(data: { title: string; description: string; priority: number; due_date: string | null; status?: TaskStatus }) {
-  const maxPos = (db.prepare("SELECT COALESCE(MAX(position), 0) as m FROM tasks").get() as { m: number }).m
+export async function createTask(data: {
+  title: string
+  description: string
+  priority: number
+  due_date: string | null
+  status?: TaskStatus
+}) {
+  await dbReady
   const status = data.status ?? "todo"
-  return db
-    .prepare("INSERT INTO tasks (title, description, priority, due_date, position, status) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(data.title, data.description, data.priority, data.due_date, maxPos + 1, status)
+  const maxResult = await client.execute(
+    "SELECT COALESCE(MAX(position), 0) as m FROM tasks"
+  )
+  const maxPos = maxResult.rows[0][0] as number
+  return client.execute({
+    sql: "INSERT INTO tasks (title, description, priority, due_date, position, status) VALUES (?, ?, ?, ?, ?, ?)",
+    args: [data.title, data.description, data.priority, data.due_date, maxPos + 1, status],
+  })
 }
 
-export function updateTask(
+export async function updateTask(
   id: number,
   data: { title: string; description: string; completed: 0 | 1; priority: number; due_date: string | null }
 ) {
-  return db
-    .prepare(
-      "UPDATE tasks SET title = ?, description = ?, completed = ?, priority = ?, due_date = ? WHERE id = ?"
-    )
-    .run(data.title, data.description, data.completed, data.priority, data.due_date, id)
+  await dbReady
+  return client.execute({
+    sql: "UPDATE tasks SET title = ?, description = ?, completed = ?, priority = ?, due_date = ? WHERE id = ?",
+    args: [data.title, data.description, data.completed, data.priority, data.due_date, id],
+  })
 }
 
-export function deleteTask(id: number) {
-  return db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
+export async function deleteTask(id: number) {
+  await dbReady
+  return client.execute({ sql: "DELETE FROM tasks WHERE id = ?", args: [id] })
 }
 
-export function toggleTask(id: number) {
-  return db
-    .prepare("UPDATE tasks SET completed = CASE WHEN completed = 0 THEN 1 ELSE 0 END WHERE id = ?")
-    .run(id)
+export async function toggleTask(id: number) {
+  await dbReady
+  return client.execute({
+    sql: "UPDATE tasks SET completed = CASE WHEN completed = 0 THEN 1 ELSE 0 END WHERE id = ?",
+    args: [id],
+  })
 }
 
-export function getTasksBoard(): Record<TaskStatus, Task[]> {
-  const tasks = db.prepare(
+export async function getTasksBoard(): Promise<Record<TaskStatus, Task[]>> {
+  await dbReady
+  const result = await client.execute(
     "SELECT * FROM tasks ORDER BY position ASC, created_at DESC"
-  ).all() as Task[]
+  )
+  const tasks = result.rows as unknown as Task[]
   return {
     todo:        tasks.filter(t => t.status === "todo"),
     in_progress: tasks.filter(t => t.status === "in_progress"),
@@ -112,16 +151,21 @@ export function getTasksBoard(): Record<TaskStatus, Task[]> {
   }
 }
 
-export function moveTask(id: number, status: TaskStatus, position: number): void {
-  db.prepare(
-    "UPDATE tasks SET status = ?, position = ?, completed = ? WHERE id = ?"
-  ).run(status, position, status === "done" ? 1 : 0, id)
+export async function moveTask(id: number, status: TaskStatus, position: number): Promise<void> {
+  await dbReady
+  await client.execute({
+    sql: "UPDATE tasks SET status = ?, position = ?, completed = ? WHERE id = ?",
+    args: [status, position, status === "done" ? 1 : 0, id],
+  })
 }
 
-export function reorderTasks(orderedIds: number[]): void {
-  const update = db.prepare("UPDATE tasks SET position = ? WHERE id = ?")
-  const runMany = db.transaction((ids: number[]) => {
-    ids.forEach((id, index) => update.run(index, id))
-  })
-  runMany(orderedIds)
+export async function reorderTasks(orderedIds: number[]): Promise<void> {
+  await dbReady
+  await client.batch(
+    orderedIds.map((id, i) => ({
+      sql: "UPDATE tasks SET position = ? WHERE id = ?",
+      args: [i, id],
+    })),
+    "write"
+  )
 }

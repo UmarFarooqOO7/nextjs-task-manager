@@ -27,13 +27,13 @@ export default async function TasksPage({ searchParams }: Props) {
   // Full-text search bypasses pagination
   let tasks, total: number, totalPages: number, safePage: number
   if (q) {
-    const results = searchTasks(q)
+    const results = await searchTasks(q)
     tasks = results
     total = results.length
     totalPages = 1
     safePage = 1
   } else {
-    const result = getTasksPage(page, PER_PAGE, { priority: priorityFilter || undefined, sort })
+    const result = await getTasksPage(page, PER_PAGE, { priority: priorityFilter || undefined, sort })
     tasks = result.tasks
     total = result.total
     totalPages = Math.ceil(total / PER_PAGE)

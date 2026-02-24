@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Plus } from "lucide-react"
 
 export default async function BoardPage() {
-  const columns = getTasksBoard()
+  const columns = await getTasksBoard()
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
