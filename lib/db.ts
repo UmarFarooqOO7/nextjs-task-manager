@@ -6,6 +6,29 @@ const client = createClient({
 })
 
 async function initDb() {
+  // Users table (GitHub OAuth)
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT,
+      avatar_url TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  // Projects table
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      owner_id TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  // Tasks table
   await client.execute(`
     CREATE TABLE IF NOT EXISTS tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,6 +45,7 @@ async function initDb() {
     `ALTER TABLE tasks ADD COLUMN due_date TEXT`,
     `ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'`,
+    `ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id)`,
   ]
   for (const sql of migrations) {
     try { await client.execute(sql) } catch {}
@@ -72,20 +96,6 @@ async function initDb() {
       END
     `)
   } catch {}
-
-  // Seed if empty
-  const countResult = await client.execute("SELECT COUNT(*) as n FROM tasks")
-  const count = countResult.rows[0][0] as number
-  if (count === 0) {
-    await client.execute({
-      sql: "INSERT INTO tasks (title, description) VALUES (?, ?)",
-      args: ["Buy groceries", "Milk, eggs, bread"],
-    })
-    await client.execute({
-      sql: "INSERT INTO tasks (title, description) VALUES (?, ?)",
-      args: ["Read a book", "Finish the current chapter"],
-    })
-  }
 }
 
 export const dbReady = initDb()
