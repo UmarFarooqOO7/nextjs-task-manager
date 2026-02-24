@@ -1,8 +1,8 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { auth } from "@/lib/auth"
-import { getProject, getTask } from "@/lib/data"
-import { deleteTaskAction, toggleTaskAction } from "@/lib/actions"
+import { getProject, getTask, getComments } from "@/lib/data"
+import { deleteTaskAction, toggleTaskAction, addCommentAction } from "@/lib/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { BackButton } from "@/app/components/back-button"
 import { DeleteDialog } from "@/app/components/delete-dialog"
 import { PriorityBadge } from "@/app/components/priority-badge"
 import { DueDateBadge } from "@/app/components/due-date-badge"
+import { Comments } from "@/app/components/comments"
 
 type Props = { params: Promise<{ id: string; taskId: string }> }
 
@@ -27,9 +28,12 @@ export default async function TaskPage({ params }: Props) {
   const task = await getTask(taskId)
   if (!task || task.project_id !== projectId) notFound()
 
+  const comments = await getComments(taskId)
+
   const basePath = `/projects/${projectId}/tasks`
   const boundDelete = deleteTaskAction.bind(null, projectId, task.id)
   const boundToggle = toggleTaskAction.bind(null, projectId, task.id)
+  const boundComment = addCommentAction.bind(null, projectId, task.id)
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -76,6 +80,10 @@ export default async function TaskPage({ params }: Props) {
 
             <DeleteDialog action={boundDelete} />
           </div>
+
+          <hr />
+
+          <Comments comments={comments} action={boundComment} />
         </CardContent>
       </Card>
     </div>
