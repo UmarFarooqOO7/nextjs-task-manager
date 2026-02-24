@@ -38,13 +38,13 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
   let tasks, total: number, totalPages: number, safePage: number
   if (q) {
     const results = await searchTasks(projectId, q)
-    tasks = results
+    tasks = results.map(t => ({ ...t }))
     total = results.length
     totalPages = 1
     safePage = 1
   } else {
     const result = await getTasksPage(projectId, page, PER_PAGE, { priority: priorityFilter || undefined, sort })
-    tasks = result.tasks
+    tasks = result.tasks.map(t => ({ ...t }))
     total = result.total
     totalPages = Math.ceil(total / PER_PAGE)
     safePage = Math.min(page, Math.max(1, totalPages))

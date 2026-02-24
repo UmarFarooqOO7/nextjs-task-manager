@@ -18,7 +18,10 @@ export default async function BoardPage({ params }: Props) {
   const project = await getProject(projectId)
   if (!project || project.owner_id !== session.user.id) notFound()
 
-  const columns = await getTasksBoard(projectId)
+  const columnsRaw = await getTasksBoard(projectId)
+  const columns = Object.fromEntries(
+    Object.entries(columnsRaw).map(([k, tasks]) => [k, tasks.map(t => ({ ...t }))])
+  ) as typeof columnsRaw
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">

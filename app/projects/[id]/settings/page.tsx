@@ -19,7 +19,8 @@ export default async function SettingsPage({ params }: Props) {
   const project = await getProject(projectId)
   if (!project || project.owner_id !== session.user.id) notFound()
 
-  const apiKeys = await listApiKeys(projectId)
+  const apiKeysRaw = await listApiKeys(projectId)
+  const apiKeys = apiKeysRaw.map(k => ({ ...k }))
   const boundCreate = createApiKeyAction.bind(null, projectId)
   const boundRevoke = revokeApiKeyAction.bind(null, projectId)
 

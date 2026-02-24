@@ -32,7 +32,7 @@ export default async function EditTaskPage({ params }: Props) {
           <CardTitle>Edit Task</CardTitle>
         </CardHeader>
         <CardContent>
-          <TaskForm action={boundAction} task={task} projectId={projectId} />
+          <TaskForm action={boundAction} task={{ ...task }} projectId={projectId} />
         </CardContent>
       </Card>
     </div>

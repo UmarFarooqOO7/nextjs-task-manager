@@ -83,7 +83,7 @@ export default async function TaskPage({ params }: Props) {
 
           <hr />
 
-          <Comments comments={comments} action={boundComment} />
+          <Comments comments={comments.map(c => ({ ...c }))} action={boundComment} />
         </CardContent>
       </Card>
     </div>
