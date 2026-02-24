@@ -28,6 +28,31 @@ async function initDb() {
     )
   `)
 
+  // API keys table
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES projects(id),
+      name TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      key_prefix TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_used_at TEXT
+    )
+  `)
+
+  // Comments table
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      author TEXT NOT NULL,
+      author_type TEXT NOT NULL DEFAULT 'human',
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
   // Tasks table
   await client.execute(`
     CREATE TABLE IF NOT EXISTS tasks (

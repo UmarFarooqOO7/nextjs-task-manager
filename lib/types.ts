@@ -29,6 +29,25 @@ export type Project = {
   created_at: string
 }
 
+export type ApiKey = {
+  id: number
+  project_id: number
+  name: string
+  key_hash: string
+  key_prefix: string
+  created_at: string
+  last_used_at: string | null
+}
+
+export type Comment = {
+  id: number
+  task_id: number
+  author: string
+  author_type: "human" | "agent"
+  body: string
+  created_at: string
+}
+
 export type ActionState = {
   error?: string
 }
