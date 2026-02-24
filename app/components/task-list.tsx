@@ -17,7 +17,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical } from "lucide-react"
+import { GripVertical, Bot } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge, badgeVariants } from "@/components/ui/badge"
@@ -109,6 +109,12 @@ function SortableTaskRow({
                 <Highlight text={task.title} query={query} />
               </Link>
               <PriorityBadge priority={task.priority} />
+              {task.claimed_by && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] rounded bg-blue-500/10 text-blue-500 px-1.5 py-0.5 shrink-0">
+                  <Bot className="size-2.5" />
+                  {task.claimed_by}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {task.description && (

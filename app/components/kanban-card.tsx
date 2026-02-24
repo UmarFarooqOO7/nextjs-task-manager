@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical } from "lucide-react"
+import { GripVertical, Bot } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { PriorityBadge } from "@/app/components/priority-badge"
 import { DueDateBadge } from "@/app/components/due-date-badge"
@@ -37,9 +37,15 @@ export function KanbanCard({ task, isDragging = false }: Props) {
               {task.description && (
                 <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
               )}
-              <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <PriorityBadge priority={task.priority} />
                 <DueDateBadge dueDate={task.due_date} completed={task.completed} />
+                {task.claimed_by && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] rounded bg-blue-500/10 text-blue-500 px-1.5 py-0.5">
+                    <Bot className="size-2.5" />
+                    {task.claimed_by}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -72,9 +78,15 @@ export function KanbanCard({ task, isDragging = false }: Props) {
               {task.description && (
                 <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
               )}
-              <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <PriorityBadge priority={task.priority} />
                 <DueDateBadge dueDate={task.due_date} completed={task.completed} />
+                {task.claimed_by && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] rounded bg-blue-500/10 text-blue-500 px-1.5 py-0.5">
+                    <Bot className="size-2.5" />
+                    {task.claimed_by}
+                  </span>
+                )}
               </div>
             </div>
           </div>
