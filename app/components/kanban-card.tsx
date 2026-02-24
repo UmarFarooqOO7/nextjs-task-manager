@@ -65,6 +65,7 @@ export function KanbanCard({ task, isDragging = false }: Props) {
         <CardContent className="px-3 py-3">
           <div className="flex items-start gap-2">
             <button
+              type="button"
               {...attributes}
               {...listeners}
               className="cursor-grab active:cursor-grabbing touch-none shrink-0 text-muted-foreground/20 hover:text-muted-foreground"

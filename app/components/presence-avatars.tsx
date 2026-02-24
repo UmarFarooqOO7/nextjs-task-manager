@@ -44,7 +44,10 @@ export function PresenceAvatars() {
         </div>
       ))}
       {overflow > 0 && (
-        <div className="size-7 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[10px] font-medium text-muted-foreground">
+        <div
+          className="size-7 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[10px] font-medium text-muted-foreground"
+          aria-label={`${overflow} more user${overflow !== 1 ? "s" : ""} online`}
+        >
           +{overflow}
         </div>
       )}

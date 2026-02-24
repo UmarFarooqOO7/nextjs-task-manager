@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useRef, useMemo } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { toast } from "sonner"
 import type { TaskEvent } from "@/lib/types"
 
@@ -18,15 +18,23 @@ function toastMessage(event: TaskEvent): string {
 
 export function TaskRealtime({ userName }: { userName?: string }) {
   const router = useRouter()
+  const pathname = usePathname()
   const actorRef = useRef<string>(userName ?? "Someone")
 
+  const projectId = useMemo(() => {
+    const m = pathname.match(/^\/projects\/(\d+)/)
+    return m ? m[1] : null
+  }, [pathname])
+
   useEffect(() => {
+    if (!projectId) return // No SSE outside a project context
+
     let es: EventSource
     let retryTimeout: ReturnType<typeof setTimeout>
 
     function connect() {
       const actor = encodeURIComponent(actorRef.current)
-      es = new EventSource(`/api/tasks/stream?actor=${actor}`)
+      es = new EventSource(`/api/tasks/stream?actor=${actor}&projectId=${projectId}`)
 
       es.addEventListener("task_event", (e: MessageEvent) => {
         const payload: TaskEvent = JSON.parse(e.data)
@@ -54,7 +62,7 @@ export function TaskRealtime({ userName }: { userName?: string }) {
       clearTimeout(retryTimeout)
       es?.close()
     }
-  }, [router])
+  }, [router, projectId])
 
   return null
 }

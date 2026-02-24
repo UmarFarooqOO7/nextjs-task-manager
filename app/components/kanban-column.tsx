@@ -48,7 +48,7 @@ export function KanbanColumn({ status, label, tasks, isOver, projectId }: Props)
       <div className="px-2 pb-2">
         <Link
           href={`/projects/${projectId}/tasks/new?status=${status}&returnTo=/projects/${projectId}/board`}
-          className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent hover:text-foreground"
+          className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-accent hover:text-foreground"
           aria-label={`Add task to ${label}`}
         >
           <Plus className="size-3.5 shrink-0" />

@@ -38,12 +38,13 @@ export async function GET(request: Request) {
   const actor = url.searchParams.get("actor") ?? session.user.name ?? "Someone"
   const projectId = Number(url.searchParams.get("projectId") || 0)
 
-  // Verify user owns the project
-  if (projectId) {
-    const project = await getProject(projectId)
-    if (!project || project.owner_id !== session.user.id) {
-      return new Response("Forbidden", { status: 403 })
-    }
+  // Require a valid projectId and verify ownership
+  if (!projectId) {
+    return new Response("Missing projectId", { status: 400 })
+  }
+  const project = await getProject(projectId)
+  if (!project || project.owner_id !== session.user.id) {
+    return new Response("Forbidden", { status: 403 })
   }
   const clientId = crypto.randomUUID()
   const encoder = new TextEncoder()
@@ -60,8 +61,7 @@ export async function GET(request: Request) {
       }
 
       function onTaskEvent(payload: TaskEvent) {
-        // Only send events for this client's project (or if no project scope)
-        if (projectId && payload.projectId && payload.projectId !== projectId) return
+        if (payload.projectId !== projectId) return
         write(`event: task_event\ndata: ${JSON.stringify(payload)}\n\n`)
       }
 

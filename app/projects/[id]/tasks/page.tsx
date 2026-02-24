@@ -188,6 +188,7 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
                   variant={p === safePage ? "default" : "ghost"}
                   size="icon"
                   asChild
+                  aria-label={`Page ${p}`}
                 >
                   <Link href={buildUrl({ page: String(p) })}>{p}</Link>
                 </Button>

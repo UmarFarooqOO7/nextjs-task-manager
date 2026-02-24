@@ -7,7 +7,6 @@ import {
   createTask,
   updateTask,
   deleteTask,
-  toggleTask,
   moveTask,
   claimTask,
   getComments,
@@ -40,24 +39,28 @@ const handler = createMcpHandler(
         },
       },
       async ({ status, priority, q }, { authInfo }) => {
-        const { projectId } = getAuth(authInfo)
-        const opts: { q?: string; priority?: number } = {}
-        if (q) opts.q = q
-        if (priority) opts.priority = priority
+        try {
+          const { projectId } = getAuth(authInfo)
+          const opts: { q?: string; priority?: number } = {}
+          if (q) opts.q = q
+          if (priority) opts.priority = priority
 
-        const result = await getTasksPage(projectId, 1, 100, opts)
-        let tasks = result.tasks
-        if (status) tasks = tasks.filter(t => t.status === status)
+          const result = await getTasksPage(projectId, 1, 100, opts)
+          let tasks = result.tasks
+          if (status) tasks = tasks.filter(t => t.status === status)
 
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify(tasks.map(t => ({
-              id: t.id, title: t.title, description: t.description,
-              status: t.status, priority: t.priority, due_date: t.due_date,
-              completed: !!t.completed, created_at: t.created_at,
-            })), null, 2),
-          }],
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(tasks.map(t => ({
+                id: t.id, title: t.title, description: t.description,
+                status: t.status, priority: t.priority, due_date: t.due_date,
+                completed: !!t.completed, created_at: t.created_at,
+              })), null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
       }
     )
@@ -70,20 +73,24 @@ const handler = createMcpHandler(
         inputSchema: { task_id: z.number().int().describe("The task ID") },
       },
       async ({ task_id }, { authInfo }) => {
-        const { projectId } = getAuth(authInfo)
-        const task = await getTask(task_id)
-        if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
-        }
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              id: task.id, title: task.title, description: task.description,
-              status: task.status, priority: task.priority, due_date: task.due_date,
-              completed: !!task.completed, created_at: task.created_at,
-            }, null, 2),
-          }],
+        try {
+          const { projectId } = getAuth(authInfo)
+          const task = await getTask(task_id)
+          if (!task || task.project_id !== projectId) {
+            return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+          }
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify({
+                id: task.id, title: task.title, description: task.description,
+                status: task.status, priority: task.priority, due_date: task.due_date,
+                completed: !!task.completed, created_at: task.created_at,
+              }, null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
       }
     )
@@ -102,14 +109,18 @@ const handler = createMcpHandler(
         },
       },
       async ({ title, description, priority, due_date, status }, { authInfo }) => {
-        const { projectId, agentName } = getAuth(authInfo)
-        const result = await createTask({
-          title, description: description ?? "", priority: priority ?? 0,
-          due_date: due_date ?? null, status: status as TaskStatus | undefined, project_id: projectId,
-        })
-        const taskId = Number(result.lastInsertRowid)
-        emitTaskEvent({ type: "created", taskId, taskTitle: title, actor: `${agentName} (agent)`, projectId })
-        return { content: [{ type: "text" as const, text: JSON.stringify({ id: taskId, title, status: status ?? "todo" }) }] }
+        try {
+          const { projectId, agentName } = getAuth(authInfo)
+          const result = await createTask({
+            title, description: description ?? "", priority: priority ?? 0,
+            due_date: due_date ?? null, status: status as TaskStatus | undefined, project_id: projectId,
+          })
+          const taskId = Number(result.lastInsertRowid)
+          emitTaskEvent({ type: "created", taskId, taskTitle: title, actor: `${agentName} (agent)`, projectId })
+          return { content: [{ type: "text" as const, text: JSON.stringify({ id: taskId, title, status: status ?? "todo" }) }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
       }
     )
 
@@ -129,24 +140,28 @@ const handler = createMcpHandler(
         },
       },
       async ({ task_id, title, description, priority, due_date, completed, status }, { authInfo }) => {
-        const { projectId, agentName } = getAuth(authInfo)
-        const task = await getTask(task_id)
-        if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+        try {
+          const { projectId, agentName } = getAuth(authInfo)
+          const task = await getTask(task_id)
+          if (!task || task.project_id !== projectId) {
+            return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+          }
+          const newCompleted = completed !== undefined
+            ? (completed ? 1 : 0)
+            : (status ? (status === "done" ? 1 : 0) : task.completed)
+          await updateTask(task_id, {
+            title: title ?? task.title, description: description ?? task.description,
+            completed: newCompleted as 0 | 1,
+            priority: priority ?? task.priority, due_date: due_date !== undefined ? due_date : task.due_date,
+          })
+          if (status && status !== task.status) {
+            await moveTask(task_id, status as TaskStatus, task.position)
+          }
+          emitTaskEvent({ type: "updated", taskId: task_id, taskTitle: title ?? task.title, actor: `${agentName} (agent)`, projectId })
+          return { content: [{ type: "text" as const, text: `Task ${task_id} updated successfully.` }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
-        const newCompleted = completed !== undefined
-          ? (completed ? 1 : 0)
-          : (status ? (status === "done" ? 1 : 0) : task.completed)
-        await updateTask(task_id, {
-          title: title ?? task.title, description: description ?? task.description,
-          completed: newCompleted as 0 | 1,
-          priority: priority ?? task.priority, due_date: due_date !== undefined ? due_date : task.due_date,
-        })
-        if (status && status !== task.status) {
-          await moveTask(task_id, status as TaskStatus, task.position)
-        }
-        emitTaskEvent({ type: "updated", taskId: task_id, taskTitle: title ?? task.title, actor: `${agentName} (agent)`, projectId })
-        return { content: [{ type: "text" as const, text: `Task ${task_id} updated successfully.` }] }
       }
     )
 
@@ -158,15 +173,24 @@ const handler = createMcpHandler(
         inputSchema: { task_id: z.number().int().describe("The task ID to complete") },
       },
       async ({ task_id }, { authInfo }) => {
-        const { projectId, agentName } = getAuth(authInfo)
-        const task = await getTask(task_id)
-        if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+        try {
+          const { projectId, agentName } = getAuth(authInfo)
+          const task = await getTask(task_id)
+          if (!task || task.project_id !== projectId) {
+            return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+          }
+          if (!task.completed) {
+            await updateTask(task_id, {
+              title: task.title, description: task.description,
+              completed: 1, priority: task.priority, due_date: task.due_date,
+            })
+          }
+          if (task.status !== "done") await moveTask(task_id, "done", task.position)
+          emitTaskEvent({ type: "toggled", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
+          return { content: [{ type: "text" as const, text: `Task "${task.title}" marked as completed.` }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
-        if (!task.completed) await toggleTask(task_id)
-        if (task.status !== "done") await moveTask(task_id, "done", task.position)
-        emitTaskEvent({ type: "toggled", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
-        return { content: [{ type: "text" as const, text: `Task "${task.title}" marked as completed.` }] }
       }
     )
 
@@ -178,14 +202,18 @@ const handler = createMcpHandler(
         inputSchema: { task_id: z.number().int().describe("The task ID to delete") },
       },
       async ({ task_id }, { authInfo }) => {
-        const { projectId, agentName } = getAuth(authInfo)
-        const task = await getTask(task_id)
-        if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+        try {
+          const { projectId, agentName } = getAuth(authInfo)
+          const task = await getTask(task_id)
+          if (!task || task.project_id !== projectId) {
+            return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+          }
+          await deleteTask(task_id)
+          emitTaskEvent({ type: "deleted", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
+          return { content: [{ type: "text" as const, text: `Task "${task.title}" deleted.` }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
-        await deleteTask(task_id)
-        emitTaskEvent({ type: "deleted", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
-        return { content: [{ type: "text" as const, text: `Task "${task.title}" deleted.` }] }
       }
     )
 
@@ -197,13 +225,18 @@ const handler = createMcpHandler(
         inputSchema: { task_id: z.number().int().describe("The task ID to claim") },
       },
       async ({ task_id }, { authInfo }) => {
-        const { projectId, agentName } = getAuth(authInfo)
-        const task = await getTask(task_id)
-        if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+        try {
+          const { projectId, agentName } = getAuth(authInfo)
+          const task = await getTask(task_id)
+          if (!task || task.project_id !== projectId) {
+            return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+          }
+          await claimTask(task_id, agentName)
+          emitTaskEvent({ type: "updated", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
+          return { content: [{ type: "text" as const, text: `Task "${task.title}" claimed by ${agentName}.` }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
-        await claimTask(task_id, agentName)
-        return { content: [{ type: "text" as const, text: `Task "${task.title}" claimed by ${agentName}.` }] }
       }
     )
 
@@ -218,13 +251,18 @@ const handler = createMcpHandler(
         },
       },
       async ({ task_id, body }, { authInfo }) => {
-        const { projectId, agentName } = getAuth(authInfo)
-        const task = await getTask(task_id)
-        if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+        try {
+          const { projectId, agentName } = getAuth(authInfo)
+          const task = await getTask(task_id)
+          if (!task || task.project_id !== projectId) {
+            return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+          }
+          await createComment({ task_id, author: agentName, author_type: "agent", body })
+          emitTaskEvent({ type: "updated", taskId: task_id, taskTitle: task.title, actor: `${agentName} (agent)`, projectId })
+          return { content: [{ type: "text" as const, text: `Comment added to task "${task.title}".` }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
-        await createComment({ task_id, author: agentName, author_type: "agent", body })
-        return { content: [{ type: "text" as const, text: `Comment added to task "${task.title}".` }] }
       }
     )
 
@@ -236,20 +274,24 @@ const handler = createMcpHandler(
         inputSchema: { task_id: z.number().int().describe("The task ID") },
       },
       async ({ task_id }, { authInfo }) => {
-        const { projectId } = getAuth(authInfo)
-        const task = await getTask(task_id)
-        if (!task || task.project_id !== projectId) {
-          return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
-        }
-        const comments = await getComments(task_id)
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify(comments.map(c => ({
-              id: c.id, author: c.author, author_type: c.author_type,
-              body: c.body, created_at: c.created_at,
-            })), null, 2),
-          }],
+        try {
+          const { projectId } = getAuth(authInfo)
+          const task = await getTask(task_id)
+          if (!task || task.project_id !== projectId) {
+            return { content: [{ type: "text" as const, text: "Task not found or access denied." }], isError: true }
+          }
+          const comments = await getComments(task_id)
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(comments.map(c => ({
+                id: c.id, author: c.author, author_type: c.author_type,
+                body: c.body, created_at: c.created_at,
+              })), null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
       }
     )

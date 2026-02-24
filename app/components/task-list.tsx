@@ -78,6 +78,7 @@ function SortableTaskRow({
         <CardContent className="flex items-center gap-2 px-3 py-3">
           {/* Drag handle */}
           <button
+            type="button"
             {...attributes}
             {...listeners}
             className="cursor-grab active:cursor-grabbing touch-none shrink-0 text-muted-foreground/40 hover:text-muted-foreground"

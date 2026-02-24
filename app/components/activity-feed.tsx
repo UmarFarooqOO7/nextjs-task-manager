@@ -35,6 +35,7 @@ export function ActivityFeedButton() {
   const [events, setEvents] = useState<FeedEntry[]>([])
   const [tick, setTick] = useState(0)
   const [filter, setFilter] = useState<Filter>("all")
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     function handler(e: Event) {
@@ -46,9 +47,10 @@ export function ActivityFeedButton() {
   }, [])
 
   useEffect(() => {
+    if (!open) return
     const id = setInterval(() => setTick(n => n + 1), 10_000)
     return () => clearInterval(id)
-  }, [])
+  }, [open])
 
   void tick
 
@@ -59,7 +61,7 @@ export function ActivityFeedButton() {
   })
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Activity feed">
           <Activity className="size-4" />
