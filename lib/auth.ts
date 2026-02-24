@@ -12,14 +12,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     authorized({ auth: session, request: { nextUrl } }) {
       const isLoggedIn = !!session?.user
       const isOnLogin = nextUrl.pathname === "/login"
-      if (isOnLogin) return true // always allow login page
-      if (!isLoggedIn) return false // redirect to login
+      if (isOnLogin) return true
+      if (!isLoggedIn) return false
       return true
     },
     async signIn({ user, profile }) {
       await dbReady
-      const githubId = String(profile?.id ?? user.id)
-      const name = user.name ?? profile?.login ?? "Unknown"
+      const gh = profile as Record<string, unknown> | undefined
+      const githubId = String(gh?.id ?? user.id ?? "")
+      const name = user.name ?? String(gh?.login ?? "Unknown")
       const email = user.email ?? null
       const avatarUrl = user.image ?? null
 
@@ -30,15 +31,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 name = excluded.name,
                 email = excluded.email,
                 avatar_url = excluded.avatar_url`,
-        args: [githubId, name, email, avatarUrl],
+        args: [githubId, name, email ?? "", avatarUrl ?? ""],
       })
       return true
     },
-    async jwt({ token, user, profile }) {
+    async jwt({ token, profile }) {
       if (profile) {
-        token.uid = String(profile.id)
-      } else if (user?.id) {
-        token.uid = user.id
+        const gh = profile as Record<string, unknown>
+        token.uid = String(gh.id)
       }
       return token
     },
