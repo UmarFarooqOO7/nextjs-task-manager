@@ -1,6 +1,6 @@
 import client, { dbReady } from "./db"
 import type { InValue } from "@libsql/client"
-import type { Task, TaskStatus, Project, Comment } from "./types"
+import type { Task, TaskStatus, Project, Comment, Label, TaskWithLabels } from "./types"
 
 // ── Projects ────────────────────────────────────────────────────────────────
 
@@ -169,24 +169,25 @@ export async function createTask(data: {
   due_date: string | null
   status?: TaskStatus
   project_id: number
+  assignee?: string | null
 }) {
   await dbReady
   const status = data.status ?? "todo"
   return client.execute({
-    sql: `INSERT INTO tasks (title, description, priority, due_date, position, status, project_id)
-          VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE project_id = ?), ?, ?)`,
-    args: [data.title, data.description, data.priority, data.due_date, data.project_id, status, data.project_id],
+    sql: `INSERT INTO tasks (title, description, priority, due_date, position, status, project_id, assignee)
+          VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE project_id = ?), ?, ?, ?)`,
+    args: [data.title, data.description, data.priority, data.due_date, data.project_id, status, data.project_id, data.assignee ?? null],
   })
 }
 
 export async function updateTask(
   id: number,
-  data: { title: string; description: string; completed: 0 | 1; priority: number; due_date: string | null }
+  data: { title: string; description: string; completed: 0 | 1; priority: number; due_date: string | null; assignee?: string | null }
 ) {
   await dbReady
   return client.execute({
-    sql: "UPDATE tasks SET title = ?, description = ?, completed = ?, priority = ?, due_date = ? WHERE id = ?",
-    args: [data.title, data.description, data.completed, data.priority, data.due_date, id],
+    sql: "UPDATE tasks SET title = ?, description = ?, completed = ?, priority = ?, due_date = ?, assignee = ? WHERE id = ?",
+    args: [data.title, data.description, data.completed, data.priority, data.due_date, data.assignee ?? null, id],
   })
 }
 
@@ -203,17 +204,42 @@ export async function toggleTask(id: number) {
   })
 }
 
-export async function getTasksBoard(projectId: number): Promise<Record<TaskStatus, Task[]>> {
+export async function getTasksBoard(projectId: number): Promise<Record<TaskStatus, TaskWithLabels[]>> {
   await dbReady
-  const result = await client.execute({
-    sql: "SELECT * FROM tasks WHERE project_id = ? ORDER BY position ASC, created_at DESC",
-    args: [projectId],
-  })
-  const tasks = result.rows as unknown as Task[]
+  const [tasksResult, labelsResult] = await client.batch([
+    {
+      sql: "SELECT * FROM tasks WHERE project_id = ? ORDER BY position ASC, created_at DESC",
+      args: [projectId],
+    },
+    {
+      sql: `SELECT tl.task_id, l.id, l.project_id, l.name, l.color, l.created_at
+            FROM task_labels tl
+            JOIN labels l ON l.id = tl.label_id
+            WHERE l.project_id = ?`,
+      args: [projectId],
+    },
+  ], "read")
+
+  const tasks = tasksResult.rows as unknown as Task[]
+  const labelRows = labelsResult.rows as unknown as (Label & { task_id: number })[]
+
+  // Group labels by task_id
+  const labelsByTask = new Map<number, Label[]>()
+  for (const row of labelRows) {
+    const existing = labelsByTask.get(row.task_id) ?? []
+    existing.push({ id: row.id, project_id: row.project_id, name: row.name, color: row.color, created_at: row.created_at })
+    labelsByTask.set(row.task_id, existing)
+  }
+
+  const tasksWithLabels: TaskWithLabels[] = tasks.map(t => ({
+    ...t,
+    labels: labelsByTask.get(t.id) ?? [],
+  }))
+
   return {
-    todo:        tasks.filter(t => t.status === "todo"),
-    in_progress: tasks.filter(t => t.status === "in_progress"),
-    done:        tasks.filter(t => t.status === "done"),
+    todo:        tasksWithLabels.filter(t => t.status === "todo"),
+    in_progress: tasksWithLabels.filter(t => t.status === "in_progress"),
+    done:        tasksWithLabels.filter(t => t.status === "done"),
   }
 }
 
@@ -244,6 +270,71 @@ export async function claimTask(id: number, claimedBy: string | null): Promise<v
     sql: "UPDATE tasks SET claimed_by = ? WHERE id = ?",
     args: [claimedBy, id],
   })
+}
+
+export async function assignTask(id: number, assignee: string | null): Promise<void> {
+  await dbReady
+  await client.execute({
+    sql: "UPDATE tasks SET assignee = ? WHERE id = ?",
+    args: [assignee, id],
+  })
+}
+
+// ── Labels ──────────────────────────────────────────────────────────────────
+
+export async function getLabels(projectId: number): Promise<Label[]> {
+  await dbReady
+  const result = await client.execute({
+    sql: "SELECT * FROM labels WHERE project_id = ? ORDER BY name ASC",
+    args: [projectId],
+  })
+  return result.rows as unknown as Label[]
+}
+
+export async function createLabel(data: { project_id: number; name: string; color: string }): Promise<Label> {
+  await dbReady
+  const result = await client.execute({
+    sql: "INSERT INTO labels (project_id, name, color) VALUES (?, ?, ?) RETURNING *",
+    args: [data.project_id, data.name, data.color],
+  })
+  return result.rows[0] as unknown as Label
+}
+
+export async function updateLabel(id: number, data: { name: string; color: string }): Promise<void> {
+  await dbReady
+  await client.execute({
+    sql: "UPDATE labels SET name = ?, color = ? WHERE id = ?",
+    args: [data.name, data.color, id],
+  })
+}
+
+export async function deleteLabel(id: number): Promise<void> {
+  await dbReady
+  await client.execute({ sql: "DELETE FROM labels WHERE id = ?", args: [id] })
+}
+
+export async function getTaskLabels(taskId: number): Promise<Label[]> {
+  await dbReady
+  const result = await client.execute({
+    sql: `SELECT l.* FROM labels l
+          JOIN task_labels tl ON tl.label_id = l.id
+          WHERE tl.task_id = ?
+          ORDER BY l.name ASC`,
+    args: [taskId],
+  })
+  return result.rows as unknown as Label[]
+}
+
+export async function setTaskLabels(taskId: number, labelIds: number[]): Promise<void> {
+  await dbReady
+  const stmts = [
+    { sql: "DELETE FROM task_labels WHERE task_id = ?", args: [taskId] as InValue[] },
+    ...labelIds.map(lid => ({
+      sql: "INSERT INTO task_labels (task_id, label_id) VALUES (?, ?)",
+      args: [taskId, lid] as InValue[],
+    })),
+  ]
+  await client.batch(stmts, "write")
 }
 
 // ── Comments ────────────────────────────────────────────────────────────────

@@ -118,6 +118,19 @@ export function TaskForm({ action, task, returnTo, defaultStatus, projectId }: P
         </div>
       </div>
 
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="assignee" className="text-sm font-medium">
+          Assignee
+        </Label>
+        <Input
+          id="assignee"
+          name="assignee"
+          type="text"
+          defaultValue={task?.assignee ?? ""}
+          placeholder="Unassigned"
+        />
+      </div>
+
       {task && (
         <div className="flex items-center gap-2">
           <Checkbox

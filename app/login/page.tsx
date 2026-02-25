@@ -1,18 +1,25 @@
 import { signIn } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Zap } from "lucide-react"
 
 export default function LoginPage() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Task Manager</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Sign in to manage your projects and tasks
+      <div className="absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 size-[600px] rounded-full bg-primary/5 blur-3xl" />
+      </div>
+      <Card className="w-full max-w-sm border-border/50 shadow-xl">
+        <CardHeader className="text-center pb-2">
+          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg">
+            <Zap className="size-6" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">Taskflow</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            AI-native project & task manager
           </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <form
             action={async () => {
               "use server"
@@ -26,6 +33,9 @@ export default function LoginPage() {
               Sign in with GitHub
             </Button>
           </form>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Manage tasks with AI agents via MCP
+          </p>
         </CardContent>
       </Card>
     </div>

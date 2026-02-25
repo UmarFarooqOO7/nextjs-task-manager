@@ -64,6 +64,26 @@ async function initDb() {
     )
   `)
 
+  // Labels table
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS labels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT '#6b7280',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  // Task-labels junction table
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS task_labels (
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      label_id INTEGER NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
+      PRIMARY KEY (task_id, label_id)
+    )
+  `)
+
   // Schema migrations — idempotent via try/catch
   const migrations = [
     `ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`,
@@ -72,6 +92,7 @@ async function initDb() {
     `ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'`,
     `ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id)`,
     `ALTER TABLE tasks ADD COLUMN claimed_by TEXT`,
+    `ALTER TABLE tasks ADD COLUMN assignee TEXT`,
   ]
   for (const sql of migrations) {
     try { await client.execute(sql) } catch {}
@@ -89,6 +110,9 @@ async function initDb() {
     `CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(task_id)`,
     `CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id)`,
     `CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)`,
+    `CREATE INDEX IF NOT EXISTS idx_labels_project ON labels(project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_task_labels_task ON task_labels(task_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_task_labels_label ON task_labels(label_id)`,
   ]
   for (const sql of indexes) {
     try { await client.execute(sql) } catch {}

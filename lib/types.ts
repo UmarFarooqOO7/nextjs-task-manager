@@ -12,7 +12,18 @@ export type Task = {
   status: TaskStatus
   project_id: number
   claimed_by: string | null
+  assignee: string | null
 }
+
+export type Label = {
+  id: number
+  project_id: number
+  name: string
+  color: string
+  created_at: string
+}
+
+export type TaskWithLabels = Task & { labels: Label[] }
 
 export type User = {
   id: string

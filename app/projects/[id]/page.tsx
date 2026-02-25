@@ -4,9 +4,16 @@ import { auth } from "@/lib/auth"
 import { getProject, getProjectStats, getActiveAgents } from "@/lib/data"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { List, LayoutDashboard, Settings, Bot } from "lucide-react"
+import { List, LayoutDashboard, Settings, Bot, Plus, Zap } from "lucide-react"
 
 type Props = { params: Promise<{ id: string }> }
+
+const STAT_CARDS = [
+  { key: "total", label: "Total Tasks", borderClass: "border-l-blue-500", textClass: "text-blue-500" },
+  { key: "todo", label: "Todo", borderClass: "border-l-gray-400", textClass: "text-gray-500" },
+  { key: "in_progress", label: "In Progress", borderClass: "border-l-amber-400", textClass: "text-amber-500" },
+  { key: "done", label: "Done", borderClass: "border-l-green-400", textClass: "text-green-500" },
+] as const
 
 export default async function ProjectDashboardPage({ params }: Props) {
   const { id: projectIdStr } = await params
@@ -23,69 +30,111 @@ export default async function ProjectDashboardPage({ params }: Props) {
   ])
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{project.name}</h1>
-        <Button variant="ghost" size="icon" asChild className="size-8" aria-label="Project settings">
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      {/* Header */}
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
+          {project.description && (
+            <p className="text-sm text-muted-foreground mt-1 max-w-xl">{project.description}</p>
+          )}
+        </div>
+        <Button variant="ghost" size="icon" asChild aria-label="Project settings">
           <Link href={`/projects/${projectId}/settings`}>
             <Settings className="size-4" />
           </Link>
         </Button>
       </div>
 
-      {project.description && (
-        <p className="text-sm text-muted-foreground mb-6">{project.description}</p>
-      )}
+      {/* Quick actions */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <Button asChild size="sm">
+          <Link href={`/projects/${projectId}/tasks/new`}>
+            <Plus className="size-3.5" />
+            New Task
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/projects/${projectId}/board`}>
+            <LayoutDashboard className="size-3.5" />
+            Board
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/projects/${projectId}/tasks`}>
+            <List className="size-3.5" />
+            List
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/projects/${projectId}/settings`}>
+            <Settings className="size-3.5" />
+            Settings
+          </Link>
+        </Button>
+      </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {([
-          ["Total", stats.total],
-          ["Todo", stats.todo],
-          ["In Progress", stats.in_progress],
-          ["Done", stats.done],
-        ] as const).map(([label, count]) => (
-          <Card key={label}>
-            <CardContent className="px-3 py-3 text-center">
-              <p className="text-2xl font-bold">{count}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        {STAT_CARDS.map(({ key, label, borderClass, textClass }) => (
+          <Card key={key} className={`border-l-4 ${borderClass}`}>
+            <CardContent className="px-4 py-3">
+              <p className={`text-2xl font-bold ${textClass}`}>{stats[key]}</p>
               <p className="text-xs text-muted-foreground">{label}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Quick links */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <Button asChild variant="outline" className="h-auto py-3">
-          <Link href={`/projects/${projectId}/tasks`} className="flex items-center gap-2">
-            <List className="size-4" />
-            Task List
-          </Link>
-        </Button>
-        <Button asChild variant="outline" className="h-auto py-3">
-          <Link href={`/projects/${projectId}/board`} className="flex items-center gap-2">
-            <LayoutDashboard className="size-4" />
-            Board View
-          </Link>
-        </Button>
-      </div>
+      {/* Progress overview */}
+      {stats.total > 0 && (
+        <Card className="mb-8">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Progress</span>
+              <span className="text-sm text-muted-foreground">
+                {Math.round((stats.done / stats.total) * 100)}% complete
+              </span>
+            </div>
+            <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden flex">
+              {stats.done > 0 && (
+                <div
+                  className="h-full bg-green-500 transition-all"
+                  style={{ width: `${(stats.done / stats.total) * 100}%` }}
+                />
+              )}
+              {stats.in_progress > 0 && (
+                <div
+                  className="h-full bg-amber-400 transition-all"
+                  style={{ width: `${(stats.in_progress / stats.total) * 100}%` }}
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Active agents */}
       {agents.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Bot className="size-4" />
+              <Bot className="size-4 text-blue-500" />
               Active Agents
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-2.5">
               {agents.map(a => (
                 <li key={a.key_prefix} className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{a.name}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-7 items-center justify-center rounded-full bg-blue-500/10">
+                      <Zap className="size-3.5 text-blue-500" />
+                    </div>
+                    <span className="font-medium">{a.name}</span>
+                  </div>
                   <span className="text-xs text-muted-foreground">
-                    Last active {new Date(a.last_used_at).toLocaleString()}
+                    {new Date(a.last_used_at).toLocaleString()}
                   </span>
                 </li>
               ))}

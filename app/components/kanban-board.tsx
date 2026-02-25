@@ -15,17 +15,14 @@ import {
 import { arrayMove } from "@dnd-kit/sortable"
 import { KanbanColumn } from "@/app/components/kanban-column"
 import { KanbanCard } from "@/app/components/kanban-card"
+import { TaskDetailDialog } from "@/app/components/task-detail-dialog"
+import { TaskCreateDialog } from "@/app/components/task-create-dialog"
 import { moveTaskAction } from "@/lib/actions"
-import type { Task, TaskStatus } from "@/lib/types"
+import type { TaskWithLabels, TaskStatus, Label } from "@/lib/types"
 
-type Columns = Record<TaskStatus, Task[]>
+type Columns = Record<TaskStatus, TaskWithLabels[]>
 
 const COLUMN_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"]
-const COLUMN_LABELS: Record<TaskStatus, string> = {
-  todo: "Todo",
-  in_progress: "In Progress",
-  done: "Done",
-}
 
 type OptimisticAction = {
   type: "move"
@@ -77,19 +74,36 @@ function isColumnStatus(id: string | number): id is TaskStatus {
 type Props = {
   initialColumns: Columns
   projectId: number
+  labels: Label[]
 }
 
-export function KanbanBoard({ initialColumns, projectId }: Props) {
+export function KanbanBoard({ initialColumns, projectId, labels }: Props) {
   const [optimisticColumns, applyAction] = useOptimistic(initialColumns, applyOptimistic)
   const [, startTransition] = useTransition()
-  const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [activeTask, setActiveTask] = useState<TaskWithLabels | null>(null)
   const [overColumn, setOverColumn] = useState<TaskStatus | null>(null)
+
+  // Dialog state
+  const [selectedTask, setSelectedTask] = useState<TaskWithLabels | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createStatus, setCreateStatus] = useState<TaskStatus>("todo")
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
   const boundMoveTask = moveTaskAction.bind(null, projectId)
+
+  function handleTaskClick(task: TaskWithLabels) {
+    setSelectedTask(task)
+    setDetailOpen(true)
+  }
+
+  function handleAddTask(status: TaskStatus) {
+    setCreateStatus(status)
+    setCreateOpen(true)
+  }
 
   function handleDragStart(event: DragStartEvent) {
     const taskId = Number(event.active.id)
@@ -161,7 +175,7 @@ export function KanbanBoard({ initialColumns, projectId }: Props) {
     startTransition(async () => {
       applyAction({ type: "move", taskId, fromStatus, toStatus, fromIndex, toIndex })
 
-      let finalDestCol: Task[]
+      let finalDestCol: TaskWithLabels[]
       if (fromStatus === toStatus) {
         finalDestCol = arrayMove(fromCol, fromIndex, toIndex)
       } else {
@@ -175,30 +189,48 @@ export function KanbanBoard({ initialColumns, projectId }: Props) {
   }
 
   return (
-    <DndContext
-      id="kanban-board"
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {COLUMN_STATUSES.map(status => (
-          <KanbanColumn
-            key={status}
-            status={status}
-            label={COLUMN_LABELS[status]}
-            tasks={optimisticColumns[status]}
-            isOver={overColumn === status}
-            projectId={projectId}
-          />
-        ))}
-      </div>
+    <>
+      <DndContext
+        id="kanban-board"
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {COLUMN_STATUSES.map(status => (
+            <KanbanColumn
+              key={status}
+              status={status}
+              tasks={optimisticColumns[status]}
+              isOver={overColumn === status}
+              onTaskClick={handleTaskClick}
+              onAddTask={handleAddTask}
+            />
+          ))}
+        </div>
 
-      <DragOverlay>
-        {activeTask ? <KanbanCard task={activeTask} isDragging /> : null}
-      </DragOverlay>
-    </DndContext>
+        <DragOverlay>
+          {activeTask ? <KanbanCard task={activeTask} isDragging /> : null}
+        </DragOverlay>
+      </DndContext>
+
+      <TaskDetailDialog
+        task={selectedTask}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        labels={labels}
+        projectId={projectId}
+      />
+
+      <TaskCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultStatus={createStatus}
+        labels={labels}
+        projectId={projectId}
+      />
+    </>
   )
 }

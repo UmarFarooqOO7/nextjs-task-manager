@@ -51,7 +51,6 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
   }
 
   const basePath = `/projects/${projectId}/tasks`
-  const boardPath = `/projects/${projectId}/board`
 
   const priorities = [
     { value: "", label: "All" },
@@ -83,10 +82,19 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
   const boundDeleteList = deleteTaskListAction.bind(null, projectId)
   const boundReorder = reorderTasksAction.bind(null, projectId)
 
+  const start = (safePage - 1) * PER_PAGE + 1
+  const end = Math.min(safePage * PER_PAGE, total)
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{project.name}</h1>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {total} task{total !== 1 ? "s" : ""}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" asChild className="size-8" aria-label="Project settings">
             <Link href={`/projects/${projectId}/settings`}>
@@ -103,14 +111,15 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
         </div>
       </div>
 
-      <div className="mb-4 flex flex-col gap-3">
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card p-3">
         <Suspense fallback={<div className="h-9 w-full rounded-md bg-muted animate-pulse" />}>
           <SearchInput />
         </Suspense>
 
         <div className="flex flex-wrap gap-2 text-sm">
           <div className="flex items-center gap-1">
-            <span className="text-muted-foreground text-xs">Priority:</span>
+            <span className="text-muted-foreground text-xs font-medium">Priority:</span>
             {priorities.map(p => (
               <Link
                 key={p.value}
@@ -127,7 +136,7 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
           </div>
 
           <div className="flex items-center gap-1 ml-auto">
-            <span className="text-muted-foreground text-xs">Sort:</span>
+            <span className="text-muted-foreground text-xs font-medium">Sort:</span>
             {sorts.map(s => (
               <Link
                 key={s.value}
@@ -146,8 +155,10 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
       </div>
 
       {tasks.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
-          <ClipboardList className="size-10 opacity-40" />
+        <div className="flex flex-col items-center gap-4 py-20 text-muted-foreground">
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-muted">
+            <ClipboardList className="size-7 opacity-40" />
+          </div>
           <p className="text-sm">
             {q ? `No tasks matching "${q}"` : total === 0 ? "No tasks yet. Create one!" : "No tasks on this page."}
           </p>
@@ -169,50 +180,50 @@ export default async function ProjectTasksPage({ params, searchParams }: Props) 
           />
 
           {!q && totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-1">
-              {safePage <= 1 ? (
-                <Button variant="ghost" size="icon" disabled aria-label="Previous page">
-                  <ChevronLeft className="size-4" />
-                </Button>
-              ) : (
-                <Button variant="ghost" size="icon" asChild aria-label="Previous page">
-                  <Link href={buildUrl({ page: String(safePage - 1) })}>
+            <div className="mt-6 flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Showing {start}–{end} of {total}
+              </p>
+              <div className="flex items-center gap-1">
+                {safePage <= 1 ? (
+                  <Button variant="ghost" size="icon" disabled aria-label="Previous page">
                     <ChevronLeft className="size-4" />
-                  </Link>
-                </Button>
-              )}
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="icon" asChild aria-label="Previous page">
+                    <Link href={buildUrl({ page: String(safePage - 1) })}>
+                      <ChevronLeft className="size-4" />
+                    </Link>
+                  </Button>
+                )}
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <Button
-                  key={p}
-                  variant={p === safePage ? "default" : "ghost"}
-                  size="icon"
-                  asChild
-                  aria-label={`Page ${p}`}
-                >
-                  <Link href={buildUrl({ page: String(p) })}>{p}</Link>
-                </Button>
-              ))}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Button
+                    key={p}
+                    variant={p === safePage ? "default" : "ghost"}
+                    size="icon"
+                    className="size-8"
+                    asChild
+                    aria-label={`Page ${p}`}
+                  >
+                    <Link href={buildUrl({ page: String(p) })}>{p}</Link>
+                  </Button>
+                ))}
 
-              {safePage >= totalPages ? (
-                <Button variant="ghost" size="icon" disabled aria-label="Next page">
-                  <ChevronRight className="size-4" />
-                </Button>
-              ) : (
-                <Button variant="ghost" size="icon" asChild aria-label="Next page">
-                  <Link href={buildUrl({ page: String(safePage + 1) })}>
+                {safePage >= totalPages ? (
+                  <Button variant="ghost" size="icon" disabled aria-label="Next page">
                     <ChevronRight className="size-4" />
-                  </Link>
-                </Button>
-              )}
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="icon" asChild aria-label="Next page">
+                    <Link href={buildUrl({ page: String(safePage + 1) })}>
+                      <ChevronRight className="size-4" />
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </div>
           )}
-
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            {q
-              ? `${total} result${total !== 1 ? "s" : ""} for "${q}"`
-              : `${total} task${total !== 1 ? "s" : ""} total${totalPages > 1 ? ` · page ${safePage} of ${totalPages}` : ""}`}
-          </p>
         </>
       )}
     </div>

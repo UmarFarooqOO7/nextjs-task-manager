@@ -15,11 +15,12 @@ export default function NewProjectPage() {
   const [state, formAction] = useActionState(createProjectAction, {})
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-lg px-4 py-8">
       <BackButton fallback="/projects" />
-      <Card>
+      <Card className="border-border/50 shadow-sm">
         <CardHeader>
-          <CardTitle>New Project</CardTitle>
+          <CardTitle className="text-xl">New Project</CardTitle>
+          <p className="text-sm text-muted-foreground">Create a project to organize your tasks.</p>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="flex flex-col gap-5">
