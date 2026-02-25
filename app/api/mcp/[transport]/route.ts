@@ -56,6 +56,7 @@ const handler = createMcpHandler(
                 id: t.id, title: t.title, description: t.description,
                 status: t.status, priority: t.priority, due_date: t.due_date,
                 completed: !!t.completed, created_at: t.created_at,
+                assignee: t.assignee, claimed_by: t.claimed_by,
               })), null, 2),
             }],
           }
@@ -86,6 +87,7 @@ const handler = createMcpHandler(
                 id: task.id, title: task.title, description: task.description,
                 status: task.status, priority: task.priority, due_date: task.due_date,
                 completed: !!task.completed, created_at: task.created_at,
+                assignee: task.assignee, claimed_by: task.claimed_by,
               }, null, 2),
             }],
           }
@@ -106,14 +108,16 @@ const handler = createMcpHandler(
           priority: z.number().int().min(0).max(3).optional().describe("Priority: 0=none, 1=low, 2=medium, 3=high"),
           due_date: z.string().optional().describe("Due date in YYYY-MM-DD format"),
           status: z.enum(["todo", "in_progress", "done"]).optional().describe("Initial status (default: todo)"),
+          assignee: z.string().nullable().optional().describe("Assignee name or null"),
         },
       },
-      async ({ title, description, priority, due_date, status }, { authInfo }) => {
+      async ({ title, description, priority, due_date, status, assignee }, { authInfo }) => {
         try {
           const { projectId, agentName } = getAuth(authInfo)
           const result = await createTask({
             title, description: description ?? "", priority: priority ?? 0,
             due_date: due_date ?? null, status: status as TaskStatus | undefined, project_id: projectId,
+            assignee: assignee ?? null,
           })
           const taskId = Number(result.lastInsertRowid)
           emitTaskEvent({ type: "created", taskId, taskTitle: title, actor: `${agentName} (agent)`, projectId })
@@ -137,9 +141,10 @@ const handler = createMcpHandler(
           due_date: z.string().nullable().optional().describe("New due date (YYYY-MM-DD) or null to clear"),
           completed: z.boolean().optional().describe("Mark as completed or not"),
           status: z.enum(["todo", "in_progress", "done"]).optional().describe("New status"),
+          assignee: z.string().nullable().optional().describe("New assignee name or null to unassign"),
         },
       },
-      async ({ task_id, title, description, priority, due_date, completed, status }, { authInfo }) => {
+      async ({ task_id, title, description, priority, due_date, completed, status, assignee }, { authInfo }) => {
         try {
           const { projectId, agentName } = getAuth(authInfo)
           const task = await getTask(task_id)
@@ -153,6 +158,7 @@ const handler = createMcpHandler(
             title: title ?? task.title, description: description ?? task.description,
             completed: newCompleted as 0 | 1,
             priority: priority ?? task.priority, due_date: due_date !== undefined ? due_date : task.due_date,
+            assignee: assignee !== undefined ? assignee : task.assignee,
           })
           if (status && status !== task.status) {
             await moveTask(task_id, status as TaskStatus, task.position)
@@ -183,6 +189,7 @@ const handler = createMcpHandler(
             await updateTask(task_id, {
               title: task.title, description: task.description,
               completed: 1, priority: task.priority, due_date: task.due_date,
+              assignee: task.assignee,
             })
           }
           if (task.status !== "done") await moveTask(task_id, "done", task.position)
