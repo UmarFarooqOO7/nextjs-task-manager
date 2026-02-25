@@ -21,6 +21,7 @@ export function RichTextEditor({ content = "", onChange, placeholder = "Write so
   onChangeRef.current = onChange
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: false,
