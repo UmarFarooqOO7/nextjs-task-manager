@@ -1,19 +1,9 @@
-import { createClient as createWebClient, type Client } from "@libsql/client"
+import { createClient } from "@libsql/client"
 
-const url = process.env.TURSO_DATABASE_URL ?? "file:tasks.db"
+const url = process.env.TURSO_DATABASE_URL
+if (!url) throw new Error("TURSO_DATABASE_URL is required")
 
-// Web client for remote URLs (Vercel/Turso), Node client for local file: URLs.
-// The node sub-path has native bindings that crash on Vercel serverless, so we
-// construct the require path dynamically to prevent Turbopack from bundling it.
-let client: Client
-if (url.startsWith("file:")) {
-  const pkg = "@libsql/client"
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createClient: createNodeClient } = require(`${pkg}/node`)
-  client = createNodeClient({ url })
-} else {
-  client = createWebClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
-}
+const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
 
 async function initDb() {
 

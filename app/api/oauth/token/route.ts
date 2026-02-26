@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { exchangeCode } from "@/lib/oauth"
 
 export async function POST(req: Request) {
   try {
@@ -28,8 +29,6 @@ export async function POST(req: Request) {
       )
     }
 
-    // Lazy import to avoid module-level crash on Vercel
-    const { exchangeCode } = await import("@/lib/oauth")
     const result = await exchangeCode(code, client_id, code_verifier, redirect_uri)
 
     if (!result) {

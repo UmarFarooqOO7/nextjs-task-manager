@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { validateClient, createAuthCode } from "@/lib/oauth"
+import client, { dbReady } from "@/lib/db"
 
 export async function GET(req: Request) {
   try {
@@ -25,11 +28,6 @@ export async function GET(req: Request) {
       )
     }
 
-    // Lazy imports to avoid module-level crash on Vercel
-    const { validateClient, createAuthCode } = await import("@/lib/oauth")
-    const { auth } = await import("@/lib/auth")
-    const { default: dbClient, dbReady } = await import("@/lib/db")
-
     const valid = await validateClient(clientId, redirectUri)
     if (!valid) {
       return NextResponse.json(
@@ -47,7 +45,7 @@ export async function GET(req: Request) {
     }
 
     await dbReady
-    const projectResult = await dbClient.execute({
+    const projectResult = await client.execute({
       sql: "SELECT id FROM projects WHERE owner_id = ? ORDER BY created_at DESC LIMIT 1",
       args: [session.user.id],
     })

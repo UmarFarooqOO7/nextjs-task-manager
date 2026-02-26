@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server"
-
-// Lazy import to avoid module-level crash on Vercel
-async function getOAuth() {
-  return await import("@/lib/oauth")
-}
+import { registerClient } from "@/lib/oauth"
 
 export async function POST(req: Request) {
   try {
@@ -26,7 +22,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const { registerClient } = await getOAuth()
     const { client_id, client_secret } = await registerClient(client_name, redirect_uris)
 
     return NextResponse.json({
