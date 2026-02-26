@@ -117,10 +117,10 @@ export async function exchangeCode(
   const pkceValid = await verifyPkce(codeVerifier, row.code_challenge)
   if (!pkceValid) return null
 
-  // Create access token (1 hour expiry)
+  // Create access token (30 day expiry)
   const accessToken = generateId("mcp")
   const tokenHash = await sha256(accessToken)
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
   await client.execute({
     sql: `INSERT INTO oauth_tokens (token_hash, client_id, user_id, project_id, scope, expires_at)

@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     return Response.json({
       access_token: result.access_token,
       token_type: "Bearer",
-      expires_in: 3600,
+      expires_in: 2592000,
       scope: result.scope ?? "mcp:tools",
     })
   } catch (e) {
