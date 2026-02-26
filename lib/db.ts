@@ -1,11 +1,12 @@
-import { createClient } from "@libsql/client/node"
+import { createClient as createWebClient } from "@libsql/client"
+import { createClient as createNodeClient } from "@libsql/client/node"
 
 const url = process.env.TURSO_DATABASE_URL ?? "file:tasks.db"
 
-const client = createClient({
-  url,
-  authToken: url.startsWith("file:") ? undefined : process.env.TURSO_AUTH_TOKEN,
-})
+// Use Node client for local file: URLs, web client for remote (Vercel/Turso)
+const client = url.startsWith("file:")
+  ? createNodeClient({ url })
+  : createWebClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
 
 async function initDb() {
 
