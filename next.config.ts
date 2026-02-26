@@ -9,7 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["enhanced-resolve", "@tailwindcss/node"],
+  serverExternalPackages: ["enhanced-resolve", "@tailwindcss/node", "@libsql/client", "libsql"],
   images: {
     remotePatterns: [
       { hostname: "avatars.githubusercontent.com" },
