@@ -1,4 +1,10 @@
-export { auth as middleware } from "@/lib/auth"
+import NextAuth from "next-auth"
+import { authConfig } from "@/lib/auth.config"
+
+// Lightweight auth instance for Edge middleware — no DB imports
+const { auth } = NextAuth(authConfig)
+
+export default auth
 
 export const config = {
   matcher: [
