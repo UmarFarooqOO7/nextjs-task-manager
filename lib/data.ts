@@ -2,6 +2,17 @@ import client, { dbReady } from "./db"
 import type { InValue } from "@libsql/client"
 import type { Task, TaskStatus, Project, Comment, Label, TaskWithLabels } from "./types"
 
+// ── Users ──────────────────────────────────────────────────────────────────
+
+export async function ensureUser(id: string, name: string, email: string | null): Promise<void> {
+  await dbReady
+  await client.execute({
+    sql: `INSERT INTO users (id, name, email) VALUES (?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email`,
+    args: [id, name, email ?? ""],
+  })
+}
+
 // ── Projects ────────────────────────────────────────────────────────────────
 
 export async function getProjectsByOwner(ownerId: string): Promise<Project[]> {

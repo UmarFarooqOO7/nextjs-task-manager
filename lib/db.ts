@@ -26,7 +26,7 @@ async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT DEFAULT '',
-      owner_id TEXT NOT NULL REFERENCES users(id),
+      owner_id TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)

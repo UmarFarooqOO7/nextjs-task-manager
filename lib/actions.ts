@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { auth } from "./auth"
-import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject, createComment, getComments, getProject, createLabel, updateLabel, deleteLabel, setTaskLabels, assignTask, getLabels } from "./data"
+import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject, createComment, getComments, getProject, createLabel, updateLabel, deleteLabel, setTaskLabels, assignTask, getLabels, ensureUser } from "./data"
 import { createApiKey, revokeApiKey } from "./api-auth"
 import { emitTaskEvent } from "./emitter"
 import type { ActionState, TaskStatus } from "./types"
@@ -62,6 +62,7 @@ async function getActor(): Promise<string> {
 async function requireUserId(): Promise<string> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Not authenticated")
+  await ensureUser(session.user.id, session.user.name ?? "Unknown", session.user.email ?? null)
   return session.user.id
 }
 
