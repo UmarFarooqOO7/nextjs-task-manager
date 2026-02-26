@@ -11,8 +11,8 @@ export function BackButton({ fallback = "/projects" }: { fallback?: string }) {
     <Button
       variant="ghost"
       size="sm"
-      className="sm:hidden -ml-2 mb-4"
-      onClick={() => router.push(fallback)}
+      className="-ml-2 mb-4"
+      onClick={() => router.back()}
     >
       <ChevronLeft className="size-4" />
       Back

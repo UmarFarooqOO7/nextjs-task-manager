@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useEffect, useTransition } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +29,11 @@ export function TaskCreateDialog({ open, onOpenChange, defaultStatus = "todo", l
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([])
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
+
+  // Sync status when defaultStatus changes (e.g. clicking + on different columns)
+  useEffect(() => {
+    if (open) setStatus(defaultStatus)
+  }, [open, defaultStatus])
 
   function reset() {
     setTitle("")

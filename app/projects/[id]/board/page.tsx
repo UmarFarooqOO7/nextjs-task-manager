@@ -7,6 +7,7 @@ import { moveTaskAction } from "@/lib/actions"
 import { KanbanBoard } from "@/app/components/kanban-board"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { BackButton } from "@/app/components/back-button"
 import Link from "next/link"
 import { Settings } from "lucide-react"
 
@@ -29,6 +30,7 @@ export default async function BoardPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      <BackButton fallback={`/projects/${projectId}`} />
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>

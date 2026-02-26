@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { LayoutDashboard, Settings, Bot, Plus, Zap } from "lucide-react"
+import { BackButton } from "@/app/components/back-button"
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -35,6 +36,7 @@ export default async function ProjectDashboardPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
+      <BackButton fallback="/projects" />
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">
         <div>

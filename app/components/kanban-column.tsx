@@ -54,7 +54,7 @@ export function KanbanColumn({ status, tasks, isOver, onTaskClick, onAddTask, pr
 
       {/* Cards */}
       <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-        <ul className="flex flex-col gap-2 p-2 overflow-y-auto max-h-[calc(100vh-14rem)] min-h-[4rem]">
+        <ul className="flex flex-col gap-2 p-2 min-h-[4rem]">
           {tasks.map(task => (
             <KanbanCard
               key={task.id}
