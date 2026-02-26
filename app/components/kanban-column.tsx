@@ -42,9 +42,8 @@ export function KanbanColumn({ status, tasks, isOver, onTaskClick, onAddTask, pr
           </span>
         </div>
         <Button
-          variant="ghost"
-          size="icon"
-          className="size-6"
+          variant="outline"
+          size="icon-xs"
           onClick={() => onAddTask(status)}
           aria-label={`Add task to ${config.label}`}
         >

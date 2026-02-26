@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { getAllTasksBoard } from "@/lib/data"
 import { moveTaskGlobalAction } from "@/lib/actions"
 import { KanbanBoard } from "@/app/components/kanban-board"
+import { BackButton } from "@/app/components/back-button"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default async function GlobalBoardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      <BackButton fallback="/projects" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Board</h1>
         <p className="text-sm text-muted-foreground mt-0.5">All tasks across projects</p>

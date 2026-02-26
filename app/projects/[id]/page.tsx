@@ -7,7 +7,7 @@ import { getProject, getProjectStats, getActiveAgents } from "@/lib/data"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { LayoutDashboard, Settings, Bot, Plus, Zap } from "lucide-react"
+import { LayoutDashboard, Settings, Bot, Zap } from "lucide-react"
 import { BackButton } from "@/app/components/back-button"
 
 type Props = { params: Promise<{ id: string }> }
@@ -55,12 +55,6 @@ export default async function ProjectDashboardPage({ params }: Props) {
       {/* Quick actions */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <Button asChild size="sm">
-          <Link href={`/projects/${projectId}/tasks/new?returnTo=/projects/${projectId}/board`}>
-            <Plus className="size-3.5" />
-            New Task
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
           <Link href={`/projects/${projectId}/board`}>
             <LayoutDashboard className="size-3.5" />
             Board
