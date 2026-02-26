@@ -1,12 +1,17 @@
-import { createClient as createWebClient } from "@libsql/client"
-import { createClient as createNodeClient } from "@libsql/client/node"
+import { createClient as createWebClient, type Client } from "@libsql/client"
 
 const url = process.env.TURSO_DATABASE_URL ?? "file:tasks.db"
 
-// Use Node client for local file: URLs, web client for remote (Vercel/Turso)
-const client = url.startsWith("file:")
-  ? createNodeClient({ url })
-  : createWebClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
+// Use Node client for local file: URLs (dynamic import to avoid bundling native bindings on Vercel),
+// web client for remote (Vercel/Turso)
+let client: Client
+if (url.startsWith("file:")) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { createClient: createNodeClient } = require("@libsql/client/node")
+  client = createNodeClient({ url })
+} else {
+  client = createWebClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
+}
 
 async function initDb() {
 
