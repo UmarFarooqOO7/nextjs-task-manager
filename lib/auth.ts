@@ -1,11 +1,21 @@
 import NextAuth from "next-auth"
+import GitHub from "next-auth/providers/github"
 import client, { dbReady } from "./db"
-import { authConfig } from "./auth.config"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  ...authConfig,
+  providers: [GitHub],
+  session: { strategy: "jwt" },
+  pages: {
+    signIn: "/login",
+  },
   callbacks: {
-    ...authConfig.callbacks,
+    authorized({ auth: session, request: { nextUrl } }) {
+      const isLoggedIn = !!session?.user
+      const isOnLogin = nextUrl.pathname === "/login"
+      if (isOnLogin) return true
+      if (!isLoggedIn) return false
+      return true
+    },
     async signIn({ user, profile }) {
       await dbReady
       const gh = profile as Record<string, unknown> | undefined
@@ -24,6 +34,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         args: [githubId, name, email ?? "", avatarUrl ?? ""],
       })
       return true
+    },
+    async jwt({ token, profile }) {
+      if (profile) {
+        const gh = profile as Record<string, unknown>
+        token.uid = String(gh.id)
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (token.uid) {
+        session.user.id = token.uid as string
+      }
+      return session
     },
   },
 })
