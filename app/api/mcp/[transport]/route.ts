@@ -394,6 +394,38 @@ const handler = createMcpHandler(
     )
 
     server.registerTool(
+      "search_projects",
+      {
+        title: "Search Projects",
+        description: "Search for projects by name or description.",
+        inputSchema: {
+          q: z.string().min(1).describe("Search query (name or description)"),
+        },
+      },
+      async ({ q }, { authInfo }) => {
+        try {
+          const { userId } = getAuth(authInfo)
+          const projects = await getProjectsByOwner(userId)
+          const query = q.toLowerCase()
+          const results = projects.filter(p =>
+            p.name.toLowerCase().includes(query) ||
+            p.description.toLowerCase().includes(query)
+          )
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(results.map(p => ({
+                id: p.id, name: p.name, description: p.description, created_at: p.created_at,
+              })), null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
       "create_project",
       {
         title: "Create Project",
