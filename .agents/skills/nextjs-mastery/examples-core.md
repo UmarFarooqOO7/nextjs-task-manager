@@ -1,0 +1,447 @@
+# Core Pattern Examples
+
+Components, routing, data fetching, and mutations.
+
+## Table of Contents
+
+- [Server Component + Suspense Streaming](#server-component--suspense-streaming)
+- [Client Component + useActionState](#client-component--useactionstate)
+- [use() Hook — Unwrap Promises in Client Components](#use-hook)
+- [Server Actions with Validation](#server-actions-with-validation)
+- [Parallel Routes](#parallel-routes)
+- [Intercepting Routes (Modal Pattern)](#intercepting-routes)
+- [Route Handlers with Auth + Validation](#route-handlers)
+- [Metadata and SEO](#metadata-and-seo)
+
+---
+
+## Server Component + Suspense Streaming
+
+```typescript
+// app/products/page.tsx
+import { Suspense } from 'react'
+
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string; page?: string }>
+}) {
+  const params = await searchParams
+
+  return (
+    <div className="flex gap-8">
+      <FilterSidebar />
+      <Suspense key={JSON.stringify(params)} fallback={<ProductListSkeleton />}>
+        <ProductList category={params.category} page={Number(params.page) || 1} />
+      </Suspense>
+    </div>
+  )
+}
+
+// Async Server Component — fetches its own data, streams in via Suspense
+async function ProductList({ category, page }: { category?: string; page: number }) {
+  const { products, totalPages } = await getProducts({ category, page })
+
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-4">
+        {products.map((p) => <ProductCard key={p.id} product={p} />)}
+      </div>
+      <Pagination currentPage={page} totalPages={totalPages} />
+    </div>
+  )
+}
+```
+
+**Multiple independent streams** — each Suspense boundary loads independently:
+
+```typescript
+// app/product/[id]/page.tsx
+import { Suspense } from 'react'
+
+export default async function ProductPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const product = await getProduct(id) // blocks — renders first
+
+  return (
+    <div>
+      <ProductHeader product={product} />
+
+      <Suspense fallback={<ReviewsSkeleton />}>
+        <Reviews productId={id} />
+      </Suspense>
+
+      <Suspense fallback={<RecommendationsSkeleton />}>
+        <Recommendations productId={id} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function Reviews({ productId }: { productId: string }) {
+  const reviews = await getReviews(productId)
+  return <ReviewList reviews={reviews} />
+}
+
+async function Recommendations({ productId }: { productId: string }) {
+  const products = await getRecommendations(productId)
+  return <ProductCarousel products={products} />
+}
+```
+
+---
+
+## Client Component + useActionState
+
+```typescript
+'use client'
+
+import { useActionState } from 'react'
+import { addToCart } from '@/app/actions/cart'
+
+export function AddToCartButton({ productId }: { productId: string }) {
+  const [state, action, isPending] = useActionState(
+    () => addToCart(productId),
+    null
+  )
+
+  return (
+    <div>
+      <button onClick={action} disabled={isPending} className="btn-primary">
+        {isPending ? 'Adding...' : 'Add to Cart'}
+      </button>
+      {state?.error && <p className="text-red-500 text-sm">{state.error}</p>}
+    </div>
+  )
+}
+```
+
+**Form pattern with useActionState:**
+
+```typescript
+'use client'
+
+import { useActionState } from 'react'
+import { createPost } from '@/app/actions'
+
+export function CreatePostForm() {
+  const [state, action, isPending] = useActionState(createPost, { message: '' })
+
+  return (
+    <form action={action}>
+      <input name="title" required />
+      <textarea name="body" required />
+      <button disabled={isPending}>
+        {isPending ? 'Creating...' : 'Create Post'}
+      </button>
+      {state.message && <p className="text-red-500">{state.message}</p>}
+    </form>
+  )
+}
+```
+
+---
+
+## use() Hook
+
+```typescript
+// Server Component creates promise, Client Component unwraps it
+export default async function Page() {
+  const dataPromise = fetchAnalytics() // don't await — pass as promise
+  return <AnalyticsChart dataPromise={dataPromise} />
+}
+```
+
+```typescript
+'use client'
+import { use } from 'react'
+
+// For async props passed from Server Components
+export function AnalyticsChart({ dataPromise }: { dataPromise: Promise<Data> }) {
+  const data = use(dataPromise) // suspends until resolved
+  return <Chart data={data} />
+}
+
+// For params/searchParams in Client Component pages
+export default function ClientPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
+  return <div>{id}</div>
+}
+```
+
+---
+
+## Server Actions with Validation
+
+```typescript
+"use server";
+
+import { z } from "zod";
+import { revalidateTag } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+export async function addToCart(productId: string) {
+  const cookieStore = await cookies();
+  const sessionId = cookieStore.get("session")?.value;
+  if (!sessionId) redirect("/login");
+
+  try {
+    await db.cart.upsert({
+      where: { sessionId_productId: { sessionId, productId } },
+      update: { quantity: { increment: 1 } },
+      create: { sessionId, productId, quantity: 1 },
+    });
+    revalidateTag("cart");
+    return { success: true };
+  } catch {
+    return { error: "Failed to add item to cart" };
+  }
+}
+
+const CheckoutSchema = z.object({
+  address: z.string().min(1, "Address is required"),
+  payment: z.string().min(1, "Payment method is required"),
+});
+
+export async function checkout(formData: FormData) {
+  const parsed = CheckoutSchema.safeParse({
+    address: formData.get("address"),
+    payment: formData.get("payment"),
+  });
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  const order = await processOrder(parsed.data);
+  redirect(`/orders/${order.id}/confirmation`);
+}
+```
+
+**Expected errors pattern** — return, don't throw:
+
+```typescript
+"use server";
+
+export async function createPost(prevState: any, formData: FormData) {
+  const title = formData.get("title") as string;
+
+  if (!title || title.length < 3) {
+    return { message: "Title must be at least 3 characters" };
+  }
+
+  try {
+    await db.post.create({ data: { title } });
+  } catch {
+    return { message: "Failed to create post" };
+  }
+
+  revalidatePath("/posts");
+  redirect("/posts");
+}
+```
+
+---
+
+## Parallel Routes
+
+Every `@slot` directory **must** have a `default.tsx` or the build will fail.
+
+```typescript
+// app/dashboard/layout.tsx
+export default function DashboardLayout({
+  children,
+  analytics,  // app/dashboard/@analytics/
+  team,       // app/dashboard/@team/
+}: {
+  children: React.ReactNode
+  analytics: React.ReactNode
+  team: React.ReactNode
+}) {
+  return (
+    <div className="dashboard-grid">
+      <main>{children}</main>
+      <aside>{analytics}</aside>
+      <aside>{team}</aside>
+    </div>
+  )
+}
+
+// app/dashboard/@analytics/default.tsx — REQUIRED
+export default function Default() { return null }
+
+// app/dashboard/@analytics/page.tsx
+export default async function AnalyticsSlot() {
+  const stats = await getAnalytics()
+  return <AnalyticsChart data={stats} />
+}
+
+// app/dashboard/@analytics/loading.tsx — independent loading state
+export default function AnalyticsLoading() { return <ChartSkeleton /> }
+```
+
+---
+
+## Intercepting Routes
+
+```
+app/
+├── @modal/
+│   ├── (.)photos/[id]/page.tsx   ← intercepted (modal on soft nav)
+│   └── default.tsx               ← returns null
+├── photos/[id]/page.tsx          ← full page (direct nav / refresh)
+└── layout.tsx                    ← renders {children} + {modal}
+```
+
+```typescript
+// app/@modal/(.)photos/[id]/page.tsx
+export default async function PhotoModal({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const photo = await getPhoto(id)
+  return <Modal><PhotoDetail photo={photo} /></Modal>
+}
+
+// app/photos/[id]/page.tsx — full page fallback on direct nav
+export default async function PhotoPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const photo = await getPhoto(id)
+  return (
+    <div>
+      <PhotoDetail photo={photo} />
+      <RelatedPhotos photoId={id} />
+    </div>
+  )
+}
+
+// app/layout.tsx
+export default function RootLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode
+  modal: React.ReactNode
+}) {
+  return (
+    <html>
+      <body>
+        {children}
+        {modal}
+      </body>
+    </html>
+  )
+}
+```
+
+---
+
+## Route Handlers
+
+```typescript
+// app/api/products/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/lib/auth";
+
+// GET handlers are uncached by default in v15+
+// Add `export const dynamic = 'force-static'` to opt in to caching
+export async function GET(request: NextRequest) {
+  const category = request.nextUrl.searchParams.get("category");
+  const products = await db.product.findMany({
+    where: category ? { category } : undefined,
+    take: 20,
+  });
+  return NextResponse.json(products);
+}
+
+const CreateProductSchema = z.object({
+  name: z.string().min(1).max(200),
+  category: z.string().min(1),
+  price: z.number().positive(),
+});
+
+export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const parsed = CreateProductSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const product = await db.product.create({ data: parsed.data });
+  return NextResponse.json(product, { status: 201 });
+}
+```
+
+```typescript
+// app/api/products/[id]/route.ts
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const product = await db.product.findUnique({ where: { id } });
+
+  if (!product) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(product);
+}
+```
+
+---
+
+## Metadata and SEO
+
+```typescript
+// app/products/[slug]/page.tsx
+import { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+
+type Props = { params: Promise<{ slug: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const product = await getProduct(slug)
+  if (!product) return {}
+
+  return {
+    title: product.name,
+    description: product.description,
+    openGraph: {
+      title: product.name,
+      description: product.description,
+      images: [{ url: product.image, width: 1200, height: 630 }],
+    },
+  }
+}
+
+export async function generateStaticParams() {
+  const products = await db.product.findMany({ select: { slug: true } })
+  return products.map((p) => ({ slug: p.slug }))
+}
+
+export default async function ProductPage({ params }: Props) {
+  const { slug } = await params
+  const product = await getProduct(slug)
+  if (!product) notFound()
+  return <ProductDetail product={product} />
+}
+```

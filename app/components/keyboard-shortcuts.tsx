@@ -8,7 +8,6 @@ import { Keyboard } from "lucide-react"
 
 const SHORTCUTS = [
   { keys: ["n"], description: "New task (in project)" },
-  { keys: ["/"], description: "Focus search" },
   { keys: ["Ctrl", "K"], description: "Command palette" },
   { keys: ["?"], description: "Show shortcuts" },
 ]
@@ -34,13 +33,9 @@ export function KeyboardShortcuts() {
           const match = pathname.match(/^\/projects\/(\d+)/)
           if (!match) break
           e.preventDefault()
-          router.push(`/projects/${match[1]}/tasks/new`)
+          router.push(`/projects/${match[1]}/tasks/new?returnTo=/projects/${match[1]}/board`)
           break
         }
-        case "/":
-          e.preventDefault()
-          document.getElementById("search-input")?.focus()
-          break
         case "?":
           e.preventDefault()
           setOpen(o => !o)

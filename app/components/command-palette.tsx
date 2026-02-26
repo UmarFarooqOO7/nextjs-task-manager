@@ -63,7 +63,7 @@ export function CommandPalette() {
             Projects
           </CommandItem>
           {projectId && (
-            <CommandItem onSelect={() => run(() => router.push(`/projects/${projectId}/tasks/new`))}>
+            <CommandItem onSelect={() => run(() => router.push(`/projects/${projectId}/tasks/new?returnTo=/projects/${projectId}/board`))}>
               <Plus className="size-4 mr-2" />
               New Task
             </CommandItem>

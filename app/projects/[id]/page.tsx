@@ -1,12 +1,21 @@
+import { Suspense } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import type { Metadata } from "next"
 import { auth } from "@/lib/auth"
 import { getProject, getProjectStats, getActiveAgents } from "@/lib/data"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { List, LayoutDashboard, Settings, Bot, Plus, Zap } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { LayoutDashboard, Settings, Bot, Plus, Zap } from "lucide-react"
 
 type Props = { params: Promise<{ id: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  const project = await getProject(Number(id))
+  return { title: project ? `${project.name} — Taskflow` : "Project — Taskflow" }
+}
 
 const STAT_CARDS = [
   { key: "total", label: "Total Tasks", borderClass: "border-l-blue-500", textClass: "text-blue-500" },
@@ -23,11 +32,6 @@ export default async function ProjectDashboardPage({ params }: Props) {
 
   const project = await getProject(projectId)
   if (!project || project.owner_id !== session.user.id) notFound()
-
-  const [stats, agents] = await Promise.all([
-    getProjectStats(projectId),
-    getActiveAgents(projectId),
-  ])
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -49,7 +53,7 @@ export default async function ProjectDashboardPage({ params }: Props) {
       {/* Quick actions */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <Button asChild size="sm">
-          <Link href={`/projects/${projectId}/tasks/new`}>
+          <Link href={`/projects/${projectId}/tasks/new?returnTo=/projects/${projectId}/board`}>
             <Plus className="size-3.5" />
             New Task
           </Link>
@@ -61,12 +65,6 @@ export default async function ProjectDashboardPage({ params }: Props) {
           </Link>
         </Button>
         <Button asChild variant="outline" size="sm">
-          <Link href={`/projects/${projectId}/tasks`}>
-            <List className="size-3.5" />
-            List
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
           <Link href={`/projects/${projectId}/settings`}>
             <Settings className="size-3.5" />
             Settings
@@ -74,7 +72,24 @@ export default async function ProjectDashboardPage({ params }: Props) {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats + Progress */}
+      <Suspense fallback={<DashboardStatsSkeleton />}>
+        <DashboardStats projectId={projectId} />
+      </Suspense>
+
+      {/* Active agents */}
+      <Suspense fallback={null}>
+        <ActiveAgents projectId={projectId} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function DashboardStats({ projectId }: { projectId: number }) {
+  const stats = await getProjectStats(projectId)
+
+  return (
+    <>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         {STAT_CARDS.map(({ key, label, borderClass, textClass }) => (
           <Card key={key} className={`border-l-4 ${borderClass}`}>
@@ -86,7 +101,6 @@ export default async function ProjectDashboardPage({ params }: Props) {
         ))}
       </div>
 
-      {/* Progress overview */}
       {stats.total > 0 && (
         <Card className="mb-8">
           <CardContent className="p-5">
@@ -113,35 +127,52 @@ export default async function ProjectDashboardPage({ params }: Props) {
           </CardContent>
         </Card>
       )}
+    </>
+  )
+}
 
-      {/* Active agents */}
-      {agents.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Bot className="size-4 text-blue-500" />
-              Active Agents
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="flex flex-col gap-2.5">
-              {agents.map(a => (
-                <li key={a.key_prefix} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="flex size-7 items-center justify-center rounded-full bg-blue-500/10">
-                      <Zap className="size-3.5 text-blue-500" />
-                    </div>
-                    <span className="font-medium">{a.name}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(a.last_used_at).toLocaleString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+async function ActiveAgents({ projectId }: { projectId: number }) {
+  const agents = await getActiveAgents(projectId)
+  if (agents.length === 0) return null
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Bot className="size-4 text-blue-500" />
+          Active Agents
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col gap-2.5">
+          {agents.map(a => (
+            <li key={a.key_prefix} className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <div className="flex size-7 items-center justify-center rounded-full bg-blue-500/10">
+                  <Zap className="size-3.5 text-blue-500" />
+                </div>
+                <span className="font-medium">{a.name}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {new Date(a.last_used_at).toLocaleString()}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  )
+}
+
+function DashboardStatsSkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="rounded-lg border border-l-4 p-4 space-y-2">
+          <Skeleton className="h-8 w-12" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      ))}
     </div>
   )
 }

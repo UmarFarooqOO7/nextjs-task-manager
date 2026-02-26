@@ -2,13 +2,50 @@
 
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { z } from "zod"
 import { auth } from "./auth"
-import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject, createComment, getProject, createLabel, updateLabel, deleteLabel, setTaskLabels, assignTask, getLabels } from "./data"
+import { createTask, updateTask, deleteTask, toggleTask, getTask, reorderTasks, moveTask, createProject, createComment, getComments, getProject, createLabel, updateLabel, deleteLabel, setTaskLabels, assignTask, getLabels } from "./data"
 import { createApiKey, revokeApiKey } from "./api-auth"
 import { emitTaskEvent } from "./emitter"
 import type { ActionState, TaskStatus } from "./types"
 
 const VALID_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"]
+
+// ── Zod Schemas ──────────────────────────────────────────────────────────────
+
+const statusSchema = z.enum(["todo", "in_progress", "done"])
+const prioritySchema = z.coerce.number().int().min(0).max(3).default(0)
+
+const createTaskSchema = z.object({
+  title: z.string().trim().min(1, "Title is required."),
+  description: z.string().trim().default(""),
+  priority: prioritySchema,
+  due_date: z.string().nullable().default(null),
+  status: statusSchema.default("todo"),
+  assignee: z.string().nullable().default(null),
+  labelIds: z.string().default(""),
+  returnTo: z.string().optional(),
+})
+
+const updateTaskSchema = z.object({
+  title: z.string().trim().min(1, "Title is required."),
+  description: z.string().trim().default(""),
+  completed: z.boolean().default(false),
+  priority: prioritySchema,
+  due_date: z.string().nullable().default(null),
+  assignee: z.string().nullable().default(null),
+  labelIds: z.string().optional(),
+})
+
+const inlineTaskSchema = z.object({
+  title: z.string().trim().min(1, "Title is required."),
+  description: z.string().trim().default(""),
+  priority: z.number().int().min(0).max(3).default(0),
+  due_date: z.string().nullable().default(null),
+  status: statusSchema.default("todo"),
+  assignee: z.string().nullable().default(null),
+  labelIds: z.array(z.number().int()).default([]),
+})
 
 async function validateLabelIds(projectId: number, labelIds: number[]): Promise<number[]> {
   if (labelIds.length === 0) return []
@@ -54,14 +91,19 @@ export async function createProjectAction(
   formData: FormData
 ): Promise<ActionState> {
   const userId = await requireUserId()
-  const name = formData.get("name")?.toString().trim() ?? ""
-  const description = formData.get("description")?.toString().trim() ?? ""
+  const parsed = z.object({
+    name: z.string().trim().min(1, "Project name is required."),
+    description: z.string().trim().default(""),
+  }).safeParse({
+    name: formData.get("name")?.toString() ?? "",
+    description: formData.get("description")?.toString() ?? "",
+  })
 
-  if (!name) return { error: "Project name is required." }
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  const result = await createProject({ name, description, owner_id: userId })
+  const result = await createProject({ ...parsed.data, owner_id: userId })
   const projectId = Number(result.lastInsertRowid)
-  redirect(`/projects/${projectId}/tasks`)
+  redirect(`/projects/${projectId}/board`)
 }
 
 export async function createTaskAction(
@@ -70,31 +112,31 @@ export async function createTaskAction(
   formData: FormData
 ): Promise<ActionState> {
   await requireProjectAccess(projectId)
-  const title = formData.get("title")?.toString().trim() ?? ""
-  const description = formData.get("description")?.toString().trim() ?? ""
-  const priority = Number(formData.get("priority") ?? 0) as 0 | 1 | 2 | 3
-  const due_date = formData.get("due_date")?.toString() || null
-  const assignee = formData.get("assignee")?.toString() || null
 
-  if (!title) return { error: "Title is required." }
+  const parsed = createTaskSchema.safeParse({
+    title: formData.get("title")?.toString() ?? "",
+    description: formData.get("description")?.toString() ?? "",
+    priority: formData.get("priority")?.toString() ?? "0",
+    due_date: formData.get("due_date")?.toString() || null,
+    status: formData.get("status")?.toString() ?? "todo",
+    assignee: formData.get("assignee")?.toString() || null,
+    labelIds: formData.get("labelIds")?.toString() ?? "",
+    returnTo: formData.get("returnTo")?.toString(),
+  })
+
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const { title, description, priority, due_date, status, assignee, labelIds: labelIdsRaw, returnTo } = parsed.data
 
   const paths = projectPaths(projectId)
-  const returnTo = formData.get("returnTo")?.toString()
-  const safeReturnTo = returnTo === paths.board ? paths.board : paths.tasks
-  const statusRaw = formData.get("status")?.toString()
-  const status: TaskStatus = VALID_STATUSES.includes(statusRaw as TaskStatus) ? (statusRaw as TaskStatus) : "todo"
+  const safeReturnTo = returnTo === paths.tasks ? paths.tasks : paths.board
 
   const actor = await getActor()
   const result = await createTask({ title, description, priority, due_date, status, project_id: projectId, assignee })
   const newTaskId = Number(result.lastInsertRowid)
 
-  // Handle labels
-  const labelIdsRaw = formData.get("labelIds")?.toString()
   if (labelIdsRaw) {
     const labelIds = await validateLabelIds(projectId, labelIdsRaw.split(",").map(Number).filter(Boolean))
-    if (labelIds.length > 0) {
-      await setTaskLabels(newTaskId, labelIds)
-    }
+    if (labelIds.length > 0) await setTaskLabels(newTaskId, labelIds)
   }
 
   revalidatePath(paths.tasks)
@@ -117,7 +159,8 @@ export async function createTaskInlineAction(
 ): Promise<{ success: boolean; error?: string }> {
   await requireProjectAccess(projectId)
 
-  if (!data.title.trim()) return { success: false, error: "Title is required." }
+  const parsed = inlineTaskSchema.safeParse(data)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
   const actor = await getActor()
   const result = await createTask({
@@ -151,21 +194,24 @@ export async function updateTaskAction(
 ): Promise<ActionState> {
   await requireProjectAccess(projectId)
   await requireTaskInProject(id, projectId)
-  const title = formData.get("title")?.toString().trim() ?? ""
-  const description = formData.get("description")?.toString().trim() ?? ""
-  const completed = formData.get("completed") === "on" ? 1 : 0
-  const priority = Number(formData.get("priority") ?? 0) as 0 | 1 | 2 | 3
-  const due_date = formData.get("due_date")?.toString() || null
-  const assignee = formData.get("assignee")?.toString() || null
 
-  if (!title) return { error: "Title is required." }
+  const parsed = updateTaskSchema.safeParse({
+    title: formData.get("title")?.toString() ?? "",
+    description: formData.get("description")?.toString() ?? "",
+    completed: formData.get("completed") === "on",
+    priority: formData.get("priority")?.toString() ?? "0",
+    due_date: formData.get("due_date")?.toString() || null,
+    assignee: formData.get("assignee")?.toString() || null,
+    labelIds: formData.get("labelIds")?.toString(),
+  })
+
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const { title, description, completed, priority, due_date, assignee, labelIds: labelIdsRaw } = parsed.data
 
   const actor = await getActor()
   const paths = projectPaths(projectId)
-  await updateTask(id, { title, description, completed: completed as 0 | 1, priority, due_date, assignee })
+  await updateTask(id, { title, description, completed: (completed ? 1 : 0) as 0 | 1, priority, due_date, assignee })
 
-  // Handle labels
-  const labelIdsRaw = formData.get("labelIds")?.toString()
   if (labelIdsRaw !== undefined) {
     const labelIds = await validateLabelIds(projectId, labelIdsRaw ? labelIdsRaw.split(",").map(Number).filter(Boolean) : [])
     await setTaskLabels(id, labelIds)
@@ -194,10 +240,11 @@ export async function updateTaskInlineAction(
   await requireProjectAccess(projectId)
   await requireTaskInProject(taskId, projectId)
 
-  if (!data.title.trim()) return { success: false, error: "Title is required." }
+  const parsed = inlineTaskSchema.safeParse(data)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
   const actor = await getActor()
-  const completed = data.status === "done" ? 1 : 0
+  const completed = parsed.data.status === "done" ? 1 : 0
   await updateTask(taskId, {
     title: data.title.trim(),
     description: data.description.trim(),
@@ -228,37 +275,23 @@ export async function deleteTaskAction(projectId: number, id: number): Promise<v
   await requireProjectAccess(projectId)
   const actor = await getActor()
   const task = await requireTaskInProject(id, projectId)
-  const taskTitle = task.title
   await deleteTask(id)
   const paths = projectPaths(projectId)
   revalidatePath(paths.tasks)
   revalidatePath(paths.board)
-  emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor, projectId })
-  redirect(paths.tasks)
+  emitTaskEvent({ type: "deleted", taskId: id, taskTitle: task.title, actor, projectId })
+  redirect(paths.board)
 }
 
 export async function toggleTaskAction(projectId: number, id: number): Promise<void> {
   await requireProjectAccess(projectId)
   const actor = await getActor()
   const task = await requireTaskInProject(id, projectId)
-  const taskTitle = task.title
   await toggleTask(id)
   const paths = projectPaths(projectId)
   revalidatePath(paths.task(id))
-  revalidatePath(paths.tasks)
-  emitTaskEvent({ type: "toggled", taskId: id, taskTitle, actor, projectId })
-}
-
-export async function deleteTaskListAction(projectId: number, id: number): Promise<void> {
-  await requireProjectAccess(projectId)
-  const actor = await getActor()
-  const task = await requireTaskInProject(id, projectId)
-  const taskTitle = task.title
-  await deleteTask(id)
-  const paths = projectPaths(projectId)
-  revalidatePath(paths.tasks)
   revalidatePath(paths.board)
-  emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor, projectId })
+  emitTaskEvent({ type: "toggled", taskId: id, taskTitle: task.title, actor, projectId })
 }
 
 export async function deleteTaskInlineAction(projectId: number, id: number): Promise<{ success: boolean }> {
@@ -272,15 +305,6 @@ export async function deleteTaskInlineAction(projectId: number, id: number): Pro
   revalidatePath(paths.board)
   emitTaskEvent({ type: "deleted", taskId: id, taskTitle, actor, projectId })
   return { success: true }
-}
-
-export async function reorderTasksAction(projectId: number, orderedIds: number[]): Promise<void> {
-  await requireProjectAccess(projectId)
-  await reorderTasks(orderedIds, projectId)
-  const paths = projectPaths(projectId)
-  revalidatePath(paths.tasks)
-  const actor = await getActor()
-  emitTaskEvent({ type: "reordered", taskId: 0, taskTitle: "", actor, projectId })
 }
 
 export async function moveTaskAction(
@@ -376,8 +400,10 @@ export async function createApiKeyAction(
   formData: FormData
 ): Promise<ActionState & { generatedKey?: string }> {
   await requireProjectAccess(projectId)
-  const name = formData.get("name")?.toString().trim() ?? ""
-  if (!name) return { error: "Key name is required." }
+  const parsed = z.object({ name: z.string().trim().min(1, "Key name is required.") })
+    .safeParse({ name: formData.get("name")?.toString() ?? "" })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const { name } = parsed.data
 
   const { key } = await createApiKey(projectId, name)
   revalidatePath(`/projects/${projectId}/settings`)
@@ -401,10 +427,41 @@ export async function addCommentAction(
   await requireProjectAccess(projectId)
   await requireTaskInProject(taskId, projectId)
   const actor = await getActor()
-  const body = formData.get("body")?.toString().trim() ?? ""
-  if (!body) return { error: "Comment cannot be empty." }
+  const parsed = z.object({ body: z.string().trim().min(1, "Comment cannot be empty.") })
+    .safeParse({ body: formData.get("body")?.toString() ?? "" })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const { body } = parsed.data
 
   await createComment({ task_id: taskId, author: actor, author_type: "human", body })
   revalidatePath(`/projects/${projectId}/tasks/${taskId}`)
   return {}
+}
+
+export async function addCommentInlineAction(
+  projectId: number,
+  taskId: number,
+  body: string
+): Promise<{ success: boolean; error?: string }> {
+  await requireProjectAccess(projectId)
+  await requireTaskInProject(taskId, projectId)
+  const trimmed = body.trim()
+  if (!trimmed) return { success: false, error: "Comment cannot be empty." }
+
+  const actor = await getActor()
+  await createComment({ task_id: taskId, author: actor, author_type: "human", body: trimmed })
+  const paths = projectPaths(projectId)
+  revalidatePath(paths.board)
+  revalidatePath(`/projects/${projectId}/tasks/${taskId}`)
+  emitTaskEvent({ type: "updated", taskId, taskTitle: "", actor, projectId })
+  return { success: true }
+}
+
+export async function getCommentsAction(
+  projectId: number,
+  taskId: number
+): Promise<{ id: number; author: string; author_type: string; body: string; created_at: string }[]> {
+  await requireProjectAccess(projectId)
+  await requireTaskInProject(taskId, projectId)
+  const comments = await getComments(taskId)
+  return comments.map(c => ({ id: c.id, author: c.author, author_type: c.author_type, body: c.body, created_at: c.created_at }))
 }

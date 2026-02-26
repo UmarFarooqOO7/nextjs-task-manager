@@ -1,15 +1,17 @@
+import { Suspense } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import type { Metadata } from "next"
 import { auth } from "@/lib/auth"
 import { getProject, getTask, getComments, getTaskLabels } from "@/lib/data"
 import { deleteTaskAction, toggleTaskAction, addCommentAction } from "@/lib/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import { BackButton } from "@/app/components/back-button"
 import { DeleteDialog } from "@/app/components/delete-dialog"
 import { PriorityIcon } from "@/app/components/priority-icon"
-import { DueDateBadge } from "@/app/components/due-date-badge"
 import { RichTextViewer } from "@/app/components/rich-text-viewer"
 import { LabelBadges } from "@/app/components/label-picker"
 import { Comments } from "@/app/components/comments"
@@ -17,6 +19,17 @@ import { STATUS_CONFIG } from "@/lib/constants"
 import { Calendar, Clock, Bot, UserCircle } from "lucide-react"
 
 type Props = { params: Promise<{ id: string; taskId: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id, taskId } = await params
+  const [project, task] = await Promise.all([
+    getProject(Number(id)),
+    getTask(Number(taskId)),
+  ])
+  const title = task ? `TASK-${task.id}: ${task.title}` : "Task"
+  const projectName = project?.name ?? "Project"
+  return { title: `${title} — ${projectName} — Taskflow` }
+}
 
 export default async function TaskPage({ params }: Props) {
   const { id: projectIdStr, taskId: taskIdStr } = await params
@@ -26,16 +39,14 @@ export default async function TaskPage({ params }: Props) {
   const session = await auth()
   if (!session?.user?.id) notFound()
 
-  const [project, task, comments, taskLabels] = await Promise.all([
+  const [project, task] = await Promise.all([
     getProject(projectId),
     getTask(taskId),
-    getComments(taskId),
-    getTaskLabels(taskId),
   ])
   if (!project || project.owner_id !== session.user.id) notFound()
   if (!task || task.project_id !== projectId) notFound()
 
-  const basePath = `/projects/${projectId}/tasks`
+  const basePath = `/projects/${projectId}/board`
   const boundDelete = deleteTaskAction.bind(null, projectId, task.id)
   const boundToggle = toggleTaskAction.bind(null, projectId, task.id)
   const boundComment = addCommentAction.bind(null, projectId, task.id)
@@ -46,7 +57,7 @@ export default async function TaskPage({ params }: Props) {
       <BackButton fallback={basePath} />
 
       <nav className="mb-4 hidden items-center gap-1 text-sm text-muted-foreground sm:flex" aria-label="Breadcrumb">
-        <Link href={basePath} className="hover:underline">Tasks</Link>
+        <Link href={basePath} className="hover:underline">Board</Link>
         <span>/</span>
         <span className="truncate text-foreground font-medium">TASK-{task.id}</span>
       </nav>
@@ -58,7 +69,6 @@ export default async function TaskPage({ params }: Props) {
             <CardContent className="p-6">
               <h1 className="text-xl font-bold mb-4">{task.title}</h1>
 
-              {/* Description */}
               {task.description ? (
                 <RichTextViewer html={task.description} />
               ) : (
@@ -66,11 +76,9 @@ export default async function TaskPage({ params }: Props) {
               )}
 
               {/* Labels */}
-              {taskLabels.length > 0 && (
-                <div className="mt-4">
-                  <LabelBadges labels={taskLabels.map(l => ({ ...l }))} max={10} />
-                </div>
-              )}
+              <Suspense fallback={<Skeleton className="h-5 w-32 mt-4" />}>
+                <TaskLabels taskId={taskId} />
+              </Suspense>
 
               <div className="flex flex-wrap gap-2 mt-6">
                 <form action={boundToggle}>
@@ -79,14 +87,16 @@ export default async function TaskPage({ params }: Props) {
                   </Button>
                 </form>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`${basePath}/${task.id}/edit`}>Edit</Link>
+                  <Link href={`/projects/${projectId}/tasks/${task.id}/edit`}>Edit</Link>
                 </Button>
                 <DeleteDialog action={boundDelete} />
               </div>
 
               <Separator className="my-6" />
 
-              <Comments comments={comments.map(c => ({ ...c }))} action={boundComment} />
+              <Suspense fallback={<Skeleton className="h-24 w-full" />}>
+                <TaskComments taskId={taskId} action={boundComment} />
+              </Suspense>
             </CardContent>
           </Card>
         </div>
@@ -149,6 +159,21 @@ export default async function TaskPage({ params }: Props) {
       </div>
     </div>
   )
+}
+
+async function TaskLabels({ taskId }: { taskId: number }) {
+  const taskLabels = await getTaskLabels(taskId)
+  if (taskLabels.length === 0) return null
+  return (
+    <div className="mt-4">
+      <LabelBadges labels={taskLabels.map(l => ({ ...l }))} max={10} />
+    </div>
+  )
+}
+
+async function TaskComments({ taskId, action }: { taskId: number; action: (prev: { error?: string }, fd: FormData) => Promise<{ error?: string }> }) {
+  const comments = await getComments(taskId)
+  return <Comments comments={comments.map(c => ({ ...c }))} action={action} />
 }
 
 function SidebarField({ label, children }: { label: string; children: React.ReactNode }) {

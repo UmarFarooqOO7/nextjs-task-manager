@@ -32,7 +32,7 @@ export function TaskForm({ action, task, returnTo, defaultStatus, projectId }: P
   const [status, setStatus] = useState<string>(defaultStatus ?? "todo")
 
   const taskDetailPath = task && projectId ? `/projects/${projectId}/tasks/${task.id}` : "/projects"
-  const cancelPath = task ? taskDetailPath : (returnTo ?? (projectId ? `/projects/${projectId}/tasks` : "/projects"))
+  const cancelPath = task ? taskDetailPath : (returnTo ?? (projectId ? `/projects/${projectId}/board` : "/projects"))
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

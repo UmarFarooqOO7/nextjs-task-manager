@@ -24,9 +24,9 @@ export default async function NewTaskPage({ params, searchParams }: Props) {
   if (!project || project.owner_id !== session.user.id) notFound()
 
   const { returnTo, status } = await searchParams
-  const basePath = `/projects/${projectId}/tasks`
   const boardPath = `/projects/${projectId}/board`
-  const safeReturnTo = returnTo === boardPath ? boardPath : basePath
+  const tasksPath = `/projects/${projectId}/tasks`
+  const safeReturnTo = returnTo === tasksPath ? tasksPath : boardPath
   const safeStatus = VALID_STATUSES.includes(status as TaskStatus) ? (status as TaskStatus) : "todo"
 
   const boundAction = createTaskAction.bind(null, projectId)

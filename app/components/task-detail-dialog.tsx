@@ -1,19 +1,21 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { RichTextEditor } from "./rich-text-editor"
 import { RichTextViewer } from "./rich-text-viewer"
 import { LabelPicker, LabelBadges } from "./label-picker"
 import { PriorityIcon } from "./priority-icon"
-import { updateTaskInlineAction, deleteTaskInlineAction } from "@/lib/actions"
+import { updateTaskInlineAction, deleteTaskInlineAction, addCommentInlineAction } from "@/lib/actions"
 import { STATUS_CONFIG } from "@/lib/constants"
-import { Calendar, Clock, Trash2, Bot, Pencil } from "lucide-react"
-import type { TaskWithLabels, Label, TaskStatus } from "@/lib/types"
+import { Calendar, Clock, Trash2, Bot, Pencil, User, Send } from "lucide-react"
+import type { TaskWithLabels, Label, TaskStatus, Comment } from "@/lib/types"
 
 type Props = {
   task: TaskWithLabels | null
@@ -26,6 +28,41 @@ type Props = {
 export function TaskDetailDialog({ task, open, onOpenChange, labels, projectId }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [comments, setComments] = useState<Comment[]>([])
+  const [commentBody, setCommentBody] = useState("")
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const commentRef = useRef<HTMLTextAreaElement>(null)
+
+  // Fetch comments when dialog opens
+  useEffect(() => {
+    if (open && task) {
+      setIsLoadingComments(true)
+      import("@/lib/actions").then(({ getCommentsAction }) =>
+        getCommentsAction(projectId, task.id)
+      ).then((c) => {
+        setComments((c as Comment[]).reverse())
+        setIsLoadingComments(false)
+      }).catch(() => setIsLoadingComments(false))
+    }
+    if (!open) {
+      setComments([])
+      setCommentBody("")
+    }
+  }, [open, task, projectId])
+
+  function handleAddComment() {
+    if (!task || !commentBody.trim()) return
+    startTransition(async () => {
+      const result = await addCommentInlineAction(projectId, task.id, commentBody)
+      if (result.success) {
+        setCommentBody("")
+        // Refresh comments
+        const { getCommentsAction } = await import("@/lib/actions")
+        const updated = await getCommentsAction(projectId, task.id)
+        setComments((updated as Comment[]).reverse())
+      }
+    })
+  }
 
   // Edit state
   const [title, setTitle] = useState("")
@@ -128,6 +165,75 @@ export function TaskDetailDialog({ task, open, onOpenChange, labels, projectId }
               <div className="mt-4">
                 <LabelBadges labels={task.labels} max={10} />
               </div>
+            )}
+
+            {/* Comments */}
+            {!isEditing && (
+              <>
+                <Separator className="my-4" />
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-sm font-semibold">
+                    Comments {comments.length > 0 && `(${comments.length})`}
+                  </h3>
+
+                  {isLoadingComments ? (
+                    <p className="text-xs text-muted-foreground">Loading comments...</p>
+                  ) : comments.length > 0 ? (
+                    <ul className="flex flex-col gap-2.5 max-h-48 overflow-y-auto">
+                      {comments.map(c => (
+                        <li key={c.id} className="flex gap-2 text-sm">
+                          <div className="mt-0.5 shrink-0">
+                            {c.author_type === "agent"
+                              ? <Bot className="size-3.5 text-blue-500" />
+                              : <User className="size-3.5 text-muted-foreground" />}
+                          </div>
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium">{c.author}</span>
+                              {c.author_type === "agent" && (
+                                <span className="text-[9px] rounded bg-blue-500/10 text-blue-500 px-1 py-0.5">agent</span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(c.created_at).toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap">{c.body}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No comments yet</p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Textarea
+                      ref={commentRef}
+                      value={commentBody}
+                      onChange={(e) => setCommentBody(e.target.value)}
+                      placeholder="Add a comment..."
+                      rows={1}
+                      className="text-xs min-h-8 resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault()
+                          handleAddComment()
+                        }
+                      }}
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="shrink-0 size-8"
+                      onClick={handleAddComment}
+                      disabled={isPending || !commentBody.trim()}
+                      aria-label="Send comment"
+                    >
+                      <Send className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -254,16 +360,36 @@ export function TaskDetailDialog({ task, open, onOpenChange, labels, projectId }
                 </Button>
               </div>
             ) : (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="w-full"
-                onClick={handleDelete}
-                disabled={isPending}
-              >
-                <Trash2 className="size-3.5" />
-                Delete Task
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="w-full"
+                    disabled={isPending}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete Task
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete task?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete &ldquo;{task.title}&rdquo;. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className={buttonVariants({ variant: "destructive" })}
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
         </div>

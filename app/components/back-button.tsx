@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export function BackButton({ fallback = "/tasks" }: { fallback?: string }) {
+export function BackButton({ fallback = "/projects" }: { fallback?: string }) {
   const router = useRouter()
 
   return (

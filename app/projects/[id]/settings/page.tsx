@@ -1,4 +1,6 @@
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
+import type { Metadata } from "next"
 import { auth } from "@/lib/auth"
 import { getProject, getLabels } from "@/lib/data"
 import { listApiKeys } from "@/lib/api-auth"
@@ -6,11 +8,18 @@ import { createApiKeyAction, revokeApiKeyAction } from "@/lib/actions"
 import { BackButton } from "@/app/components/back-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ApiKeyForm } from "./api-key-form"
 import { ApiKeyList } from "./api-key-list"
 import { LabelManager } from "./label-manager"
 
 type Props = { params: Promise<{ id: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  const project = await getProject(Number(id))
+  return { title: project ? `Settings — ${project.name} — Taskflow` : "Settings — Taskflow" }
+}
 
 export default async function SettingsPage({ params }: Props) {
   const { id: projectIdStr } = await params
@@ -21,17 +30,12 @@ export default async function SettingsPage({ params }: Props) {
   const project = await getProject(projectId)
   if (!project || project.owner_id !== session.user.id) notFound()
 
-  const [apiKeysRaw, labels] = await Promise.all([
-    listApiKeys(projectId),
-    getLabels(projectId),
-  ])
-  const apiKeys = apiKeysRaw.map(k => ({ ...k }))
   const boundCreate = createApiKeyAction.bind(null, projectId)
   const boundRevoke = revokeApiKeyAction.bind(null, projectId)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <BackButton fallback={`/projects/${projectId}/tasks`} />
+      <BackButton fallback={`/projects/${projectId}/board`} />
 
       <h1 className="text-2xl font-bold tracking-tight mb-6">{project.name} — Settings</h1>
 
@@ -51,7 +55,9 @@ export default async function SettingsPage({ params }: Props) {
               </p>
             </CardHeader>
             <CardContent>
-              <LabelManager labels={labels.map(l => ({ ...l }))} projectId={projectId} />
+              <Suspense fallback={<Skeleton className="h-32 w-full" />}>
+                <LabelsContent projectId={projectId} />
+              </Suspense>
             </CardContent>
           </Card>
         </TabsContent>
@@ -66,7 +72,9 @@ export default async function SettingsPage({ params }: Props) {
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
               <ApiKeyForm action={boundCreate} />
-              <ApiKeyList apiKeys={apiKeys} revokeAction={boundRevoke} />
+              <Suspense fallback={<Skeleton className="h-24 w-full" />}>
+                <ApiKeysContent projectId={projectId} revokeAction={boundRevoke} />
+              </Suspense>
             </CardContent>
           </Card>
         </TabsContent>
@@ -98,4 +106,15 @@ export default async function SettingsPage({ params }: Props) {
       </Tabs>
     </div>
   )
+}
+
+async function LabelsContent({ projectId }: { projectId: number }) {
+  const labels = await getLabels(projectId)
+  return <LabelManager labels={labels.map(l => ({ ...l }))} projectId={projectId} />
+}
+
+async function ApiKeysContent({ projectId, revokeAction }: { projectId: number; revokeAction: (keyId: number) => Promise<void> }) {
+  const apiKeysRaw = await listApiKeys(projectId)
+  const apiKeys = apiKeysRaw.map(k => ({ ...k }))
+  return <ApiKeyList apiKeys={apiKeys} revokeAction={revokeAction} />
 }

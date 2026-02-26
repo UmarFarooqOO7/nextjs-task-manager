@@ -17,7 +17,6 @@ import { KanbanColumn } from "@/app/components/kanban-column"
 import { KanbanCard } from "@/app/components/kanban-card"
 import { TaskDetailDialog } from "@/app/components/task-detail-dialog"
 import { TaskCreateDialog } from "@/app/components/task-create-dialog"
-import { moveTaskAction } from "@/lib/actions"
 import type { TaskWithLabels, TaskStatus, Label } from "@/lib/types"
 
 type Columns = Record<TaskStatus, TaskWithLabels[]>
@@ -75,9 +74,10 @@ type Props = {
   initialColumns: Columns
   projectId: number
   labels: Label[]
+  moveTaskAction: (taskId: number, status: TaskStatus, orderedIds: number[]) => Promise<void>
 }
 
-export function KanbanBoard({ initialColumns, projectId, labels }: Props) {
+export function KanbanBoard({ initialColumns, projectId, labels, moveTaskAction }: Props) {
   const [optimisticColumns, applyAction] = useOptimistic(initialColumns, applyOptimistic)
   const [, startTransition] = useTransition()
   const [activeTask, setActiveTask] = useState<TaskWithLabels | null>(null)
@@ -92,8 +92,6 @@ export function KanbanBoard({ initialColumns, projectId, labels }: Props) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
-
-  const boundMoveTask = moveTaskAction.bind(null, projectId)
 
   function handleTaskClick(task: TaskWithLabels) {
     setSelectedTask(task)
@@ -184,7 +182,7 @@ export function KanbanBoard({ initialColumns, projectId, labels }: Props) {
         finalDestCol.splice(toIndex, 0, task)
       }
 
-      await boundMoveTask(taskId, toStatus, finalDestCol.map(t => t.id))
+      await moveTaskAction(taskId, toStatus, finalDestCol.map(t => t.id))
     })
   }
 

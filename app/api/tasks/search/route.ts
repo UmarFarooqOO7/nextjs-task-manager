@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const projectId = Number(url.searchParams.get("projectId"))
-  if (!projectId) return NextResponse.json([])
+  if (!projectId) return NextResponse.json({ error: "projectId required" }, { status: 400 })
 
   // Verify ownership
   const project = await getProject(projectId)
