@@ -1,11 +1,14 @@
-import { createClient } from "@libsql/client"
+import { createClient } from "@libsql/client/node"
+
+const url = process.env.TURSO_DATABASE_URL ?? "file:tasks.db"
 
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL ?? "file:tasks.db",
-  authToken: process.env.TURSO_AUTH_TOKEN,
+  url,
+  authToken: url.startsWith("file:") ? undefined : process.env.TURSO_AUTH_TOKEN,
 })
 
 async function initDb() {
+
   // Users table (GitHub OAuth)
   await client.execute(`
     CREATE TABLE IF NOT EXISTS users (
