@@ -20,7 +20,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { FolderOpen, LogOut, Settings, Zap } from "lucide-react"
+import { FolderOpen, Kanban, LogOut, Settings, Zap } from "lucide-react"
+import { McpConfigButton } from "./components/mcp-config-button"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -61,6 +62,13 @@ export default async function RootLayout({
                 {user && (
                   <nav className="flex items-center gap-1">
                     <Link
+                      href="/board"
+                      className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    >
+                      <Kanban className="size-3.5" aria-hidden="true" />
+                      Board
+                    </Link>
+                    <Link
                       href="/projects"
                       className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                     >
@@ -73,6 +81,7 @@ export default async function RootLayout({
               <div className="flex items-center gap-1">
                 <PresenceAvatars />
                 <ActivityFeedButton />
+                <McpConfigButton />
                 <KeyboardShortcuts />
                 <ThemeToggle />
                 {user && (

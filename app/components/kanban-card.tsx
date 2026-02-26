@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, Bot, Calendar } from "lucide-react"
+import { GripVertical, Bot, Calendar, FolderOpen } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { PriorityIcon } from "@/app/components/priority-icon"
 import { LabelBadges } from "@/app/components/label-picker"
@@ -13,9 +13,10 @@ type Props = {
   task: TaskWithLabels
   isDragging?: boolean
   onClick?: () => void
+  projectName?: string
 }
 
-export function KanbanCard({ task, isDragging = false, onClick }: Props) {
+export function KanbanCard({ task, isDragging = false, onClick, projectName }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } =
     useSortable({ id: task.id })
 
@@ -77,6 +78,14 @@ export function KanbanCard({ task, isDragging = false, onClick }: Props) {
 
               {/* Labels */}
               <LabelBadges labels={task.labels} max={2} />
+
+              {/* Project badge */}
+              {projectName && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5 w-fit">
+                  <FolderOpen className="size-2.5" aria-hidden="true" />
+                  {projectName}
+                </span>
+              )}
 
               {/* Bottom row: assignee, due date, claimed */}
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">

@@ -15,9 +15,10 @@ type Props = {
   isOver: boolean
   onTaskClick: (task: TaskWithLabels) => void
   onAddTask: (status: TaskStatus) => void
+  projectMap?: Map<number, string>
 }
 
-export function KanbanColumn({ status, tasks, isOver, onTaskClick, onAddTask }: Props) {
+export function KanbanColumn({ status, tasks, isOver, onTaskClick, onAddTask, projectMap }: Props) {
   const { setNodeRef } = useDroppable({ id: status })
   const config = STATUS_CONFIG[status]
 
@@ -59,6 +60,7 @@ export function KanbanColumn({ status, tasks, isOver, onTaskClick, onAddTask }: 
               key={task.id}
               task={task}
               onClick={() => onTaskClick(task)}
+              projectName={projectMap?.get(task.project_id)}
             />
           ))}
         </ul>

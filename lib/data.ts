@@ -187,6 +187,65 @@ export async function getTasksBoard(projectId: number): Promise<Record<TaskStatu
   }
 }
 
+export async function getAllTasksBoard(userId: string): Promise<{
+  columns: Record<TaskStatus, TaskWithLabels[]>
+  projects: Project[]
+}> {
+  await dbReady
+
+  // Step 1: get all user-owned projects
+  const projectsResult = await client.execute({
+    sql: "SELECT * FROM projects WHERE owner_id = ? ORDER BY created_at DESC",
+    args: [userId],
+  })
+  const projects = projectsResult.rows as unknown as Project[]
+  if (projects.length === 0) {
+    return { columns: { todo: [], in_progress: [], done: [] }, projects: [] }
+  }
+
+  const projectIds = projects.map(p => p.id)
+  const placeholders = projectIds.map(() => "?").join(", ")
+
+  // Step 2: batch-fetch tasks + labels for all projects
+  const [tasksResult, labelsResult] = await client.batch([
+    {
+      sql: `SELECT * FROM tasks WHERE project_id IN (${placeholders}) ORDER BY position ASC, created_at DESC`,
+      args: projectIds as InValue[],
+    },
+    {
+      sql: `SELECT tl.task_id, l.id, l.project_id, l.name, l.color, l.created_at
+            FROM task_labels tl
+            JOIN labels l ON l.id = tl.label_id
+            WHERE l.project_id IN (${placeholders})`,
+      args: projectIds as InValue[],
+    },
+  ], "read")
+
+  const tasks = tasksResult.rows as unknown as Task[]
+  const labelRows = labelsResult.rows as unknown as (Label & { task_id: number })[]
+
+  const labelsByTask = new Map<number, Label[]>()
+  for (const row of labelRows) {
+    const existing = labelsByTask.get(row.task_id) ?? []
+    existing.push({ id: row.id, project_id: row.project_id, name: row.name, color: row.color, created_at: row.created_at })
+    labelsByTask.set(row.task_id, existing)
+  }
+
+  const tasksWithLabels: TaskWithLabels[] = tasks.map(t => ({
+    ...t,
+    labels: labelsByTask.get(t.id) ?? [],
+  }))
+
+  return {
+    columns: {
+      todo:        tasksWithLabels.filter(t => t.status === "todo"),
+      in_progress: tasksWithLabels.filter(t => t.status === "in_progress"),
+      done:        tasksWithLabels.filter(t => t.status === "done"),
+    },
+    projects,
+  }
+}
+
 export async function moveTask(id: number, status: TaskStatus, position: number): Promise<void> {
   await dbReady
   await client.execute({

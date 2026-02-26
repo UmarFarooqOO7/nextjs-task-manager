@@ -17,7 +17,8 @@ import { KanbanColumn } from "@/app/components/kanban-column"
 import { KanbanCard } from "@/app/components/kanban-card"
 import { TaskDetailDialog } from "@/app/components/task-detail-dialog"
 import { TaskCreateDialog } from "@/app/components/task-create-dialog"
-import type { TaskWithLabels, TaskStatus, Label } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import type { TaskWithLabels, TaskStatus, Label, Project } from "@/lib/types"
 
 type Columns = Record<TaskStatus, TaskWithLabels[]>
 
@@ -75,19 +76,37 @@ type Props = {
   projectId: number
   labels: Label[]
   moveTaskAction: (taskId: number, status: TaskStatus, orderedIds: number[]) => Promise<void>
+  projects?: Project[]
+  showProjectBadge?: boolean
 }
 
-export function KanbanBoard({ initialColumns, projectId, labels, moveTaskAction }: Props) {
+export function KanbanBoard({ initialColumns, projectId, labels, moveTaskAction, projects, showProjectBadge }: Props) {
   const [optimisticColumns, applyAction] = useOptimistic(initialColumns, applyOptimistic)
   const [, startTransition] = useTransition()
   const [activeTask, setActiveTask] = useState<TaskWithLabels | null>(null)
   const [overColumn, setOverColumn] = useState<TaskStatus | null>(null)
+  const [filterProjectId, setFilterProjectId] = useState<number | null>(null)
 
   // Dialog state
   const [selectedTask, setSelectedTask] = useState<TaskWithLabels | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createStatus, setCreateStatus] = useState<TaskStatus>("todo")
+
+  // Build project name map for badges
+  const projectMap = new Map<number, string>()
+  if (projects) {
+    for (const p of projects) projectMap.set(p.id, p.name)
+  }
+
+  // Apply client-side project filter
+  const filteredColumns: Columns = filterProjectId
+    ? {
+        todo: optimisticColumns.todo.filter(t => t.project_id === filterProjectId),
+        in_progress: optimisticColumns.in_progress.filter(t => t.project_id === filterProjectId),
+        done: optimisticColumns.done.filter(t => t.project_id === filterProjectId),
+      }
+    : optimisticColumns
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -188,6 +207,39 @@ export function KanbanBoard({ initialColumns, projectId, labels, moveTaskAction 
 
   return (
     <>
+      {/* Project filter bar (multi-project mode only) */}
+      {projects && projects.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setFilterProjectId(null)}
+            className={cn(
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              filterProjectId === null
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >
+            All Projects
+          </button>
+          {projects.map(p => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setFilterProjectId(p.id)}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                filterProjectId === p.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <DndContext
         id="kanban-board"
         sensors={sensors}
@@ -201,16 +253,23 @@ export function KanbanBoard({ initialColumns, projectId, labels, moveTaskAction 
             <KanbanColumn
               key={status}
               status={status}
-              tasks={optimisticColumns[status]}
+              tasks={filteredColumns[status]}
               isOver={overColumn === status}
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
+              projectMap={showProjectBadge ? projectMap : undefined}
             />
           ))}
         </div>
 
         <DragOverlay>
-          {activeTask ? <KanbanCard task={activeTask} isDragging /> : null}
+          {activeTask ? (
+            <KanbanCard
+              task={activeTask}
+              isDragging
+              projectName={showProjectBadge ? projectMap.get(activeTask.project_id) : undefined}
+            />
+          ) : null}
         </DragOverlay>
       </DndContext>
 
@@ -219,7 +278,7 @@ export function KanbanBoard({ initialColumns, projectId, labels, moveTaskAction 
         open={detailOpen}
         onOpenChange={setDetailOpen}
         labels={labels}
-        projectId={projectId}
+        projectId={selectedTask?.project_id ?? projectId}
       />
 
       <TaskCreateDialog
@@ -227,7 +286,7 @@ export function KanbanBoard({ initialColumns, projectId, labels, moveTaskAction 
         onOpenChange={setCreateOpen}
         defaultStatus={createStatus}
         labels={labels}
-        projectId={projectId}
+        projectId={filterProjectId ?? projectId}
       />
     </>
   )

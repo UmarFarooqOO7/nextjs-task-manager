@@ -325,6 +325,27 @@ export async function moveTaskAction(
   emitTaskEvent({ type: "moved", taskId: id, taskTitle: task?.title ?? "", actor, projectId })
 }
 
+export async function moveTaskGlobalAction(
+  taskId: number,
+  status: TaskStatus,
+  orderedColumnIds: number[]
+): Promise<void> {
+  const userId = await requireUserId()
+  const task = await getTask(taskId)
+  if (!task) throw new Error("Task not found")
+  const project = await getProject(task.project_id)
+  if (!project || project.owner_id !== userId) throw new Error("Access denied")
+
+  const actor = await getActor()
+  const position = orderedColumnIds.indexOf(taskId)
+  await moveTask(taskId, status, position)
+  await reorderTasks(orderedColumnIds, task.project_id)
+  revalidatePath(`/board`)
+  revalidatePath(`/projects/${task.project_id}/board`)
+  revalidatePath(`/projects/${task.project_id}/tasks`)
+  emitTaskEvent({ type: "moved", taskId, taskTitle: task.title, actor, projectId: task.project_id })
+}
+
 // ── Labels ────────────────────────────────────────────────────────────────
 
 export async function createLabelAction(
