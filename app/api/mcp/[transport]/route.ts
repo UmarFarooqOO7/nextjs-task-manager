@@ -1,6 +1,6 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler"
 import { z } from "zod"
-import { validateOAuthToken } from "@/lib/oauth"
+import { validateOAuthToken, updateTokenProject } from "@/lib/oauth"
 import dbClient, { dbReady } from "@/lib/db"
 import {
   getTasks,
@@ -14,19 +14,24 @@ import {
   getComments,
   createComment,
   getProject,
+  getProjectsByOwner,
+  createProject as createProjectData,
+  updateProject,
   getLabels,
 } from "@/lib/data"
 import { emitTaskEvent } from "@/lib/emitter"
 import type { TaskStatus } from "@/lib/types"
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js"
 
-function getAuth(authInfo?: AuthInfo): { projectId: number; agentName: string } {
+function getAuth(authInfo?: AuthInfo): { projectId: number; agentName: string; userId: string; token: string } {
   const projectId = authInfo?.extra?.projectId as number | undefined
   const agentName = authInfo?.extra?.agentName as string | undefined
-  if (!projectId || !agentName) {
+  const userId = authInfo?.clientId
+  const token = authInfo?.token
+  if (!projectId || !agentName || !userId || !token) {
     throw new Error("Not authenticated.")
   }
-  return { projectId, agentName }
+  return { projectId, agentName, userId, token }
 }
 
 const handler = createMcpHandler(
@@ -362,6 +367,117 @@ const handler = createMcpHandler(
         }
       }
     )
+
+    server.registerTool(
+      "list_projects",
+      {
+        title: "List Projects",
+        description: "List all projects owned by the authenticated user.",
+        inputSchema: {},
+      },
+      async (_args, { authInfo }) => {
+        try {
+          const { userId } = getAuth(authInfo)
+          const projects = await getProjectsByOwner(userId)
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(projects.map(p => ({
+                id: p.id, name: p.name, description: p.description, created_at: p.created_at,
+              })), null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
+      "create_project",
+      {
+        title: "Create Project",
+        description: "Create a new project and optionally switch to it.",
+        inputSchema: {
+          name: z.string().min(1).describe("Project name"),
+          description: z.string().optional().describe("Project description"),
+          switch_to: z.boolean().optional().describe("Switch to the new project after creation (default: true)"),
+        },
+      },
+      async ({ name, description, switch_to }, { authInfo }) => {
+        try {
+          const { userId, token } = getAuth(authInfo)
+          const result = await createProjectData({ name, description: description ?? "", owner_id: userId })
+          const projectId = Number(result.lastInsertRowid)
+          if (switch_to !== false) {
+            await updateTokenProject(token, projectId)
+          }
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify({ id: projectId, name, switched: switch_to !== false }),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
+      "update_project",
+      {
+        title: "Update Project",
+        description: "Update the current project's name or description.",
+        inputSchema: {
+          name: z.string().optional().describe("New project name"),
+          description: z.string().optional().describe("New project description"),
+        },
+      },
+      async ({ name, description }, { authInfo }) => {
+        try {
+          const { projectId } = getAuth(authInfo)
+          await updateProject(projectId, { name, description })
+          return { content: [{ type: "text" as const, text: `Project ${projectId} updated.` }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
+      "switch_project",
+      {
+        title: "Switch Project",
+        description: "Switch the active project for all subsequent tool calls.",
+        inputSchema: {
+          project_id: z.number().int().describe("The project ID to switch to"),
+        },
+      },
+      async ({ project_id }, { authInfo }) => {
+        try {
+          const { userId, token } = getAuth(authInfo)
+          const project = await getProject(project_id)
+          if (!project) {
+            return { content: [{ type: "text" as const, text: "Project not found." }], isError: true }
+          }
+          // Verify ownership
+          const userProjects = await getProjectsByOwner(userId)
+          if (!userProjects.some(p => p.id === project_id)) {
+            return { content: [{ type: "text" as const, text: "Access denied — you don't own this project." }], isError: true }
+          }
+          await updateTokenProject(token, project_id)
+          return {
+            content: [{
+              type: "text" as const,
+              text: `Switched to project "${project.name}" (ID: ${project_id}). All subsequent tool calls will use this project.`,
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
   },
   { capabilities: {} },
   { basePath: "/api/mcp", maxDuration: 60 }
@@ -407,21 +523,4 @@ async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInf
 // Wrap handler with mcp-handler's built-in auth (handles 401, WWW-Authenticate, AsyncLocalStorage)
 const authedHandler = withMcpAuth(handler, verifyToken, { required: true })
 
-async function debugHandler(req: Request) {
-  // Log request details
-  const sessionId = req.headers.get("mcp-session-id")
-  const clonedReq = req.clone()
-  let reqBody = ""
-  try { reqBody = await clonedReq.text() } catch {}
-  console.log(`[MCP] ${req.method} session=${sessionId} body=${reqBody.slice(0, 200)}`)
-
-  const response = await authedHandler(req)
-  if (response.status >= 400) {
-    const cloned = response.clone()
-    const body = await cloned.text()
-    console.error(`[MCP] ${req.method} ${response.status}:`, body || "(empty body)")
-  }
-  return response
-}
-
-export { debugHandler as GET, debugHandler as POST, debugHandler as DELETE }
+export { authedHandler as GET, authedHandler as POST, authedHandler as DELETE }

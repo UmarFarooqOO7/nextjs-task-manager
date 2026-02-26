@@ -30,6 +30,20 @@ export async function createProject(data: { name: string; description: string; o
   })
 }
 
+export async function updateProject(id: number, data: { name?: string; description?: string }) {
+  await dbReady
+  const sets: string[] = []
+  const args: (string | number)[] = []
+  if (data.name !== undefined) { sets.push("name = ?"); args.push(data.name) }
+  if (data.description !== undefined) { sets.push("description = ?"); args.push(data.description) }
+  if (sets.length === 0) return
+  args.push(id)
+  return client.execute({
+    sql: `UPDATE projects SET ${sets.join(", ")} WHERE id = ?`,
+    args,
+  })
+}
+
 export async function getProjectStats(projectId: number) {
   await dbReady
   const result = await client.execute({

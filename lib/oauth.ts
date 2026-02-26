@@ -158,3 +158,13 @@ export async function validateOAuthToken(
 
   return { userId: row.user_id, projectId: row.project_id, scope: row.scope }
 }
+
+/** Update the project_id on an existing token (for switch_project) */
+export async function updateTokenProject(bearerToken: string, projectId: number): Promise<void> {
+  await dbReady
+  const tokenHash = await sha256(bearerToken)
+  await client.execute({
+    sql: "UPDATE oauth_tokens SET project_id = ? WHERE token_hash = ?",
+    args: [projectId, tokenHash],
+  })
+}
