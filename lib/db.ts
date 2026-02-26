@@ -84,6 +84,44 @@ async function initDb() {
     )
   `)
 
+  // OAuth tables for MCP OAuth 2.1 (RFC 8414 / RFC 7591)
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      id TEXT PRIMARY KEY,
+      secret_hash TEXT,
+      name TEXT NOT NULL,
+      redirect_uris TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS oauth_codes (
+      code TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      project_id INTEGER,
+      redirect_uri TEXT NOT NULL,
+      code_challenge TEXT NOT NULL,
+      code_challenge_method TEXT DEFAULT 'S256',
+      scope TEXT,
+      expires_at TEXT NOT NULL,
+      used INTEGER DEFAULT 0
+    )
+  `)
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      token_hash TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      project_id INTEGER,
+      scope TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
   // Schema migrations — idempotent via try/catch
   const migrations = [
     `ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`,
@@ -113,10 +151,19 @@ async function initDb() {
     `CREATE INDEX IF NOT EXISTS idx_labels_project ON labels(project_id)`,
     `CREATE INDEX IF NOT EXISTS idx_task_labels_task ON task_labels(task_id)`,
     `CREATE INDEX IF NOT EXISTS idx_task_labels_label ON task_labels(label_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_oauth_codes_expires ON oauth_codes(expires_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_oauth_tokens_expires ON oauth_tokens(expires_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user ON oauth_tokens(user_id)`,
   ]
   for (const sql of indexes) {
     try { await client.execute(sql) } catch {}
   }
+
+  // Cleanup expired OAuth rows on startup
+  try {
+    await client.execute("DELETE FROM oauth_codes WHERE expires_at < datetime('now')")
+    await client.execute("DELETE FROM oauth_tokens WHERE expires_at < datetime('now')")
+  } catch {}
 
   // FTS5 virtual table for full-text search
   await client.execute(`

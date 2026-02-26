@@ -1,8 +1,10 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler"
 import { z } from "zod"
-import { validateApiKey } from "@/lib/api-auth"
+import { validateOAuthToken } from "@/lib/oauth"
+import dbClient, { dbReady } from "@/lib/db"
 import {
-  getTasksPage,
+  getTasks,
+  searchTasks,
   getTask,
   createTask,
   updateTask,
@@ -11,16 +13,18 @@ import {
   claimTask,
   getComments,
   createComment,
+  getProject,
+  getLabels,
 } from "@/lib/data"
 import { emitTaskEvent } from "@/lib/emitter"
 import type { TaskStatus } from "@/lib/types"
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js"
 
-function getAuth(authInfo: unknown): { projectId: number; agentName: string } {
-  const extra = (authInfo as { extra?: Record<string, unknown> })?.extra
-  const projectId = extra?.projectId
-  const agentName = extra?.agentName
-  if (typeof projectId !== "number" || typeof agentName !== "string") {
-    throw new Error("Invalid authentication: missing projectId or agentName")
+function getAuth(authInfo?: AuthInfo): { projectId: number; agentName: string } {
+  const projectId = authInfo?.extra?.projectId as number | undefined
+  const agentName = authInfo?.extra?.agentName as string | undefined
+  if (!projectId || !agentName) {
+    throw new Error("Not authenticated.")
   }
   return { projectId, agentName }
 }
@@ -41,13 +45,11 @@ const handler = createMcpHandler(
       async ({ status, priority, q }, { authInfo }) => {
         try {
           const { projectId } = getAuth(authInfo)
-          const opts: { q?: string; priority?: number } = {}
-          if (q) opts.q = q
-          if (priority) opts.priority = priority
-
-          const result = await getTasksPage(projectId, 1, 100, opts)
-          let tasks = result.tasks
+          let tasks = q
+            ? await searchTasks(projectId, q)
+            : await getTasks(projectId)
           if (status) tasks = tasks.filter(t => t.status === status)
+          if (priority) tasks = tasks.filter(t => t.priority === priority)
 
           return {
             content: [{
@@ -57,6 +59,64 @@ const handler = createMcpHandler(
                 status: t.status, priority: t.priority, due_date: t.due_date,
                 completed: !!t.completed, created_at: t.created_at,
                 assignee: t.assignee, claimed_by: t.claimed_by,
+              })), null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
+      "get_project",
+      {
+        title: "Get Project",
+        description: "Get details of the current project (name, description, creation date).",
+        inputSchema: {
+          verbose: z.boolean().optional().describe("Include full description (default true)"),
+        },
+      },
+      async (_args, { authInfo }) => {
+        try {
+          const { projectId } = getAuth(authInfo)
+          const project = await getProject(projectId)
+          if (!project) {
+            return { content: [{ type: "text" as const, text: "Project not found." }], isError: true }
+          }
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify({
+                id: project.id, name: project.name, description: project.description,
+                created_at: project.created_at,
+              }, null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
+      "list_labels",
+      {
+        title: "List Labels",
+        description: "List all labels available in the project for tagging tasks.",
+        inputSchema: {
+          verbose: z.boolean().optional().describe("Include color codes (default true)"),
+        },
+      },
+      async (_args, { authInfo }) => {
+        try {
+          const { projectId } = getAuth(authInfo)
+          const labels = await getLabels(projectId)
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(labels.map(l => ({
+                id: l.id, name: l.name, color: l.color,
               })), null, 2),
             }],
           }
@@ -307,20 +367,61 @@ const handler = createMcpHandler(
   { basePath: "/api/mcp", maxDuration: 60 }
 )
 
-const authedHandler = withMcpAuth(
-  handler,
-  async (_req: Request, bearerToken?: string) => {
-    if (!bearerToken?.startsWith("tm_")) return undefined
-    const result = await validateApiKey(`Bearer ${bearerToken}`)
-    if (!result) return undefined
-    return {
-      token: bearerToken,
-      clientId: result.agentName,
-      scopes: [],
-      extra: { projectId: result.projectId, agentName: result.agentName },
-    }
-  },
-  { required: true }
-)
+// Verify OAuth token and return AuthInfo for mcp-handler's AsyncLocalStorage context
+async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
+  if (!bearerToken) return undefined
 
-export { authedHandler as GET, authedHandler as POST, authedHandler as DELETE }
+  const oauthResult = await validateOAuthToken(bearerToken)
+  if (!oauthResult) return undefined
+
+  // Resolve projectId — set at authorize time, fallback to user's first project
+  let projectId = oauthResult.projectId
+  if (!projectId) {
+    await dbReady
+    const result = await dbClient.execute({
+      sql: "SELECT id FROM projects WHERE owner_id = ? ORDER BY created_at DESC LIMIT 1",
+      args: [oauthResult.userId],
+    })
+    if (result.rows.length === 0) return undefined
+    projectId = result.rows[0].id as number
+  }
+
+  // Look up user name
+  await dbReady
+  const userResult = await dbClient.execute({
+    sql: "SELECT name FROM users WHERE id = ?",
+    args: [oauthResult.userId],
+  })
+  const agentName = userResult.rows.length > 0
+    ? (userResult.rows[0].name as string)
+    : "OAuth User"
+
+  return {
+    token: bearerToken,
+    clientId: oauthResult.userId,
+    scopes: oauthResult.scope ? [oauthResult.scope] : ["mcp:tools"],
+    extra: { projectId, agentName },
+  }
+}
+
+// Wrap handler with mcp-handler's built-in auth (handles 401, WWW-Authenticate, AsyncLocalStorage)
+const authedHandler = withMcpAuth(handler, verifyToken, { required: true })
+
+async function debugHandler(req: Request) {
+  // Log request details
+  const sessionId = req.headers.get("mcp-session-id")
+  const clonedReq = req.clone()
+  let reqBody = ""
+  try { reqBody = await clonedReq.text() } catch {}
+  console.log(`[MCP] ${req.method} session=${sessionId} body=${reqBody.slice(0, 200)}`)
+
+  const response = await authedHandler(req)
+  if (response.status >= 400) {
+    const cloned = response.clone()
+    const body = await cloned.text()
+    console.error(`[MCP] ${req.method} ${response.status}:`, body || "(empty body)")
+  }
+  return response
+}
+
+export { debugHandler as GET, debugHandler as POST, debugHandler as DELETE }
