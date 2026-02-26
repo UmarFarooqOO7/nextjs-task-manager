@@ -41,6 +41,23 @@ export async function createProject(data: { name: string; description: string; o
   })
 }
 
+export async function deleteProject(id: number) {
+  await dbReady
+  // Delete all associated data, then the project
+  const tasks = await client.execute({ sql: "SELECT id FROM tasks WHERE project_id = ?", args: [id] })
+  for (const row of tasks.rows) {
+    const taskId = row.id as number
+    await client.execute({ sql: "DELETE FROM comments WHERE task_id = ?", args: [taskId] })
+    await client.execute({ sql: "DELETE FROM task_labels WHERE task_id = ?", args: [taskId] })
+  }
+  await client.execute({ sql: "DELETE FROM tasks WHERE project_id = ?", args: [id] })
+  await client.execute({ sql: "DELETE FROM labels WHERE project_id = ?", args: [id] })
+  await client.execute({ sql: "DELETE FROM api_keys WHERE project_id = ?", args: [id] })
+  await client.execute({ sql: "DELETE FROM oauth_codes WHERE project_id = ?", args: [id] })
+  await client.execute({ sql: "DELETE FROM oauth_tokens WHERE project_id = ?", args: [id] })
+  return client.execute({ sql: "DELETE FROM projects WHERE id = ?", args: [id] })
+}
+
 export async function updateProject(id: number, data: { name?: string; description?: string }) {
   await dbReady
   const sets: string[] = []

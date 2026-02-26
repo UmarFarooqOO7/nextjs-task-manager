@@ -16,6 +16,7 @@ import {
   getProject,
   getProjectsByOwner,
   createProject as createProjectData,
+  deleteProject,
   updateProject,
   getLabels,
 } from "@/lib/data"
@@ -506,6 +507,34 @@ const handler = createMcpHandler(
           const { projectId } = getAuth(authInfo)
           await updateProject(projectId, { name, description })
           return { content: [{ type: "text" as const, text: `Project ${projectId} updated.` }] }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
+      "delete_project",
+      {
+        title: "Delete Project",
+        description: "Permanently delete a project and all its tasks, comments, and labels.",
+        inputSchema: {
+          project_id: z.number().int().describe("The project ID to delete"),
+        },
+      },
+      async ({ project_id }, { authInfo }) => {
+        try {
+          const { userId } = getAuth(authInfo)
+          const project = await getProject(project_id)
+          if (!project) {
+            return { content: [{ type: "text" as const, text: "Project not found." }], isError: true }
+          }
+          const userProjects = await getProjectsByOwner(userId)
+          if (!userProjects.some(p => p.id === project_id)) {
+            return { content: [{ type: "text" as const, text: "Access denied — you don't own this project." }], isError: true }
+          }
+          await deleteProject(project_id)
+          return { content: [{ type: "text" as const, text: `Project "${project.name}" (ID: ${project_id}) deleted permanently.` }] }
         } catch (e) {
           return { content: [{ type: "text" as const, text: String(e) }], isError: true }
         }
