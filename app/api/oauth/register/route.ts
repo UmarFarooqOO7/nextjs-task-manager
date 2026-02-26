@@ -1,4 +1,9 @@
-import { registerClient } from "@/lib/oauth"
+import { NextResponse } from "next/server"
+
+// Lazy import to avoid module-level crash on Vercel
+async function getOAuth() {
+  return await import("@/lib/oauth")
+}
 
 export async function POST(req: Request) {
   try {
@@ -6,25 +11,25 @@ export async function POST(req: Request) {
     const { client_name, redirect_uris, grant_types, response_types } = body
 
     if (!client_name || !redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
-      return Response.json(
+      return NextResponse.json(
         { error: "invalid_client_metadata", error_description: "client_name and redirect_uris are required" },
         { status: 400 }
       )
     }
 
-    // Validate redirect_uris are valid URLs
     for (const uri of redirect_uris) {
       try { new URL(uri) } catch {
-        return Response.json(
+        return NextResponse.json(
           { error: "invalid_client_metadata", error_description: `Invalid redirect_uri: ${uri}` },
           { status: 400 }
         )
       }
     }
 
+    const { registerClient } = await getOAuth()
     const { client_id, client_secret } = await registerClient(client_name, redirect_uris)
 
-    return Response.json({
+    return NextResponse.json({
       client_id,
       client_secret,
       client_name,
@@ -35,8 +40,8 @@ export async function POST(req: Request) {
     }, { status: 201 })
   } catch (e) {
     console.error("[OAuth] Registration error:", e)
-    return Response.json(
-      { error: "server_error", error_description: "An internal error occurred" },
+    return NextResponse.json(
+      { error: "server_error", error_description: String(e) },
       { status: 500 }
     )
   }
