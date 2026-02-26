@@ -74,6 +74,41 @@ const handler = createMcpHandler(
     )
 
     server.registerTool(
+      "search_tasks",
+      {
+        title: "Search Tasks",
+        description: "Search for tasks by title or description in the current project.",
+        inputSchema: {
+          q: z.string().min(1).describe("Search query (title or description)"),
+          status: z.enum(["todo", "in_progress", "done"]).optional().describe("Filter by task status"),
+          priority: z.number().int().min(0).max(3).optional().describe("Filter by priority (1=low, 2=medium, 3=high)"),
+        },
+      },
+      async ({ q, status, priority }, { authInfo }) => {
+        try {
+          const { projectId } = getAuth(authInfo)
+          let tasks = await searchTasks(projectId, q)
+          if (status) tasks = tasks.filter(t => t.status === status)
+          if (priority) tasks = tasks.filter(t => t.priority === priority)
+
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(tasks.map(t => ({
+                id: t.id, title: t.title, description: t.description,
+                status: t.status, priority: t.priority, due_date: t.due_date,
+                completed: !!t.completed, created_at: t.created_at,
+                assignee: t.assignee, claimed_by: t.claimed_by,
+              })), null, 2),
+            }],
+          }
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: String(e) }], isError: true }
+        }
+      }
+    )
+
+    server.registerTool(
       "get_project",
       {
         title: "Get Project",
